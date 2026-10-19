@@ -1,0 +1,13 @@
+---
+description: Spec-Driven Development — spec antes do código; fontes em specs/ e Spec de produto
+alwaysApply: true
+---
+
+# SDD — vd+ Core
+
+- Fonte de comportamento: `Spec_Engenharia_vd_Plus_Core.md` + `specs/features/**` + `specs/constitution.md`.
+- Fluxo: ler spec → se cobrir, implementar → se não cobrir, perguntar ou propor item em `specs/backlog/` / feature spec antes de inventar regra.
+- Nova funcionalidade: `specs/backlog/` → `specs/features/<slug>/spec.md` → atualizar Spec de produto → código.
+- Decisões estruturais novas: registrar ADR em `specs/adr/`.
+- Responder em português do Brasil.
+- Não publicar `specs/`, `AGENTS.md` nem `.cursor/` no Apps Script (já cobertos pelo `.claspignore` via `**/*.md` e pastas de tooling).

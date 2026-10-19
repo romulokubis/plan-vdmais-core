@@ -1,0 +1,15 @@
+---
+description: Arquitetura modular Apps Script / Web App vd+ Core
+globs: "{*.gs,*.html,Code.gs,Index.html,*Module.html}"
+alwaysApply: false
+---
+
+# Arquitetura
+
+- `Index.html` = shell; módulos via `include()`.
+- Um arquivo por módulo; JS em IIFE com namespace em `window`.
+- Só `AppShell` chama `init()` / `show()`.
+- Comunicação entre módulos: apenas `CustomEvent` na `window`.
+- Backend: `JSON.stringify({ success, ... })`; erro com `message`.
+- Segredos Businessmap: Script Properties, nunca no fonte.
+- Deploy produtivo: atualizar implantação existente (`clasp deploy --deploymentId`), não criar URL nova.

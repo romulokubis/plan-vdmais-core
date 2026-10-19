@@ -359,4 +359,10 @@ Ações de editar e cancelar só aparecem quando o usuário é o dono da ausênc
 
 ## Em aberto
 
-- Como regenerar a escala: a partir de qual data e com quantos turnos.
+Itens detalhados em `specs/backlog/`. Em especial:
+
+- Como regenerar a escala: a partir de qual data e com quantos turnos — ver `specs/backlog/regenerar-escala.md`.
+
+## Documentação SDD
+
+O processo Spec-Driven Development está em `specs/README.md`. Constituição: `specs/constitution.md`. Features: `specs/features/`. ADRs: `specs/adr/`.

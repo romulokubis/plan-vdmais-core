@@ -1,5 +1,7 @@
 ﻿.git/**
 .github/**
+.cursor/**
+specs/**
 node_modules/**
 **/*.md
 .gitignore
