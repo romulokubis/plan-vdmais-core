@@ -1,0 +1,21 @@
+<div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Release Notes</h2>
+    <button id="btn-rn-sync" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-xs font-semibold rounded-xl">🔄 Sincronizar</button>
+  </div>
+  <div id="rn-output" class="bg-slate-900 text-slate-100 p-6 rounded-xl font-mono text-xs shadow-inner">Aguardando...</div>
+</div>
+<script>
+window.ReleaseNotesModule = (function() {
+  return {
+    init: function() {
+      var button = document.getElementById('btn-rn-sync');
+      if (!button) return;
+      button.addEventListener('click', function() {
+        document.getElementById('rn-output').textContent = 'A integração com a Businessmap ainda não está configurada.';
+      });
+    },
+    show: function() {}
+  };
+})();
+</script>

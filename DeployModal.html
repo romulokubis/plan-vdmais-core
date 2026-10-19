@@ -1,0 +1,254 @@
+<div id="deployModalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-xl shadow-2xl overflow-hidden transition-all transform scale-100">
+    
+    <!-- Header do Modal -->
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xl" id="deployModalIcon">🚀</span>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white" id="deployModalTitle">Agendar Novo Deploy</h3>
+      </div>
+      <button onclick="DeployModal.close()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold focus:outline-none cursor-pointer">&times;</button>
+    </div>
+
+    <!-- Formulário -->
+    <form id="deployForm" onsubmit="DeployModal.handleSubmit(event)" class="p-6 space-y-4">
+      
+      <!-- Campo Oculto para ID (Edição) -->
+      <input type="hidden" id="inputId" value="" />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Release Tribo VD *</label>
+          <input type="text" id="inputReleaseTribo" required placeholder="Ex: Release 5.16" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Release Sistema *</label>
+          <input type="text" id="inputReleaseSistema" required placeholder="Ex: Microserviço Core v1.2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Instância / País *</label>
+          <select id="inputInstancia" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="">Selecione a instância...</option>
+            <option value="Portugal">Portugal 🇵🇹</option>
+            <option value="Colômbia">Colômbia 🇨🇴</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Data do Deploy *</label>
+          <input type="date" id="inputDataDeploy" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Início do Desenvolvimento</label>
+          <input type="date" id="inputDataInicio" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Fim do Desenvolvimento</label>
+          <input type="date" id="inputDataFim" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div id="statusContainer" class="hidden">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Status da Release *</label>
+          <select id="inputStatus" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="Em definição">Em definição</option>
+            <option value="Agendado">Agendado</option>
+            <option value="Concluído">Concluído</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+
+        <div id="responsavelContainer" class="col-span-full">
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Responsável</label>
+          <input type="email" id="inputResponsavel" readonly disabled class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Observação</label>
+        <textarea id="inputObservacao" rows="2" placeholder="Detalhes ou dependências do deploy..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none"></textarea>
+      </div>
+
+      <div id="modalFeedback" class="hidden text-xs py-2 px-3 rounded-lg"></div>
+
+      <!-- Footer do Modal -->
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+        <button type="button" onclick="DeployModal.close()" class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer">Cancelar</button>
+        <button type="submit" id="btnSubmitDeploy" class="px-5 py-2 text-xs font-bold text-white bg-[#008775] hover:bg-[#006e5f] rounded-lg shadow transition-all flex items-center gap-1 cursor-pointer">
+          Confirmar Agendamento
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<script>
+window.DeployModal = (function() {
+  var backdrop = document.getElementById('deployModalBackdrop');
+  var feedback = document.getElementById('modalFeedback');
+  var btnSubmit = document.getElementById('btnSubmitDeploy');
+
+  function formatDateForInput(dateStr) {
+    if (!dateStr) return '';
+    if (dateStr.includes('-')) return dateStr;
+    var parts = dateStr.split('/');
+    if (parts.length === 3) {
+      return parts[2] + '-' + String(parts[1]).padStart(2, '0') + '-' + String(parts[0]).padStart(2, '0');
+    }
+    return dateStr;
+  }
+
+  function open(data) {
+    var isEdit = !!(data && data.id);
+    
+    document.getElementById('deployModalTitle').innerText = isEdit ? 'Editar Deploy (' + data.id + ')' : 'Agendar Novo Deploy';
+    document.getElementById('deployModalIcon').innerText = isEdit ? '✏️' : '🚀';
+    
+    var statusContainer = document.getElementById('statusContainer');
+    var responsavelContainer = document.getElementById('responsavelContainer');
+    
+    if (isEdit) {
+      statusContainer.classList.remove('hidden');
+      responsavelContainer.classList.remove('col-span-full');
+      
+      document.getElementById('inputId').value = data.id || '';
+      document.getElementById('inputReleaseTribo').value = data.releaseTribo || '';
+      document.getElementById('inputReleaseSistema').value = data.releaseSistema || '';
+      document.getElementById('inputInstancia').value = data.instancia || '';
+      document.getElementById('inputDataDeploy').value = formatDateForInput(data.dataDeploy);
+      document.getElementById('inputDataInicio').value = formatDateForInput(data.dataInicio);
+      document.getElementById('inputDataFim').value = formatDateForInput(data.dataFim);
+      document.getElementById('inputStatus').value = data.status || 'Agendado';
+      document.getElementById('inputObservacao').value = data.observacao || '';
+      document.getElementById('inputResponsavel').value = data.responsavel || '';
+    } else {
+      statusContainer.classList.add('hidden');
+      responsavelContainer.classList.add('col-span-full');
+      
+      var form = document.getElementById('deployForm');
+      if (form) form.reset();
+      document.getElementById('inputId').value = '';
+      document.getElementById('inputStatus').value = 'Agendado';
+    }
+
+    if (backdrop) backdrop.classList.remove('hidden');
+
+    if (!isEdit && typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(function(email) {
+          var respInput = document.getElementById('inputResponsavel');
+          if (respInput) respInput.value = email || '';
+        })
+        .getUserEmail();
+    }
+  }
+
+  function close() {
+    if (backdrop) backdrop.classList.add('hidden');
+    var form = document.getElementById('deployForm');
+    if (form) form.reset();
+    if (feedback) feedback.classList.add('hidden');
+  }
+
+  function showMessage(msg, isError) {
+    if (!feedback) return;
+    feedback.innerText = msg;
+    feedback.className = isError 
+      ? 'text-xs py-2 px-3 rounded-lg bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200'
+      : 'text-xs py-2 px-3 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200';
+    feedback.classList.remove('hidden');
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    btnSubmit.disabled = true;
+    
+    var idVal = document.getElementById('inputId').value;
+    var isEdit = !!idVal;
+    
+    btnSubmit.innerText = isEdit ? 'Salvando Alterações...' : 'Validando e Salvando...';
+
+    var payload = {
+      id: idVal,
+      releaseTribo: document.getElementById('inputReleaseTribo').value,
+      releaseSistema: document.getElementById('inputReleaseSistema').value,
+      instancia: document.getElementById('inputInstancia').value,
+      dataInicio: document.getElementById('inputDataInicio').value,
+      dataFim: document.getElementById('inputDataFim').value,
+      dataDeploy: document.getElementById('inputDataDeploy').value,
+      status: document.getElementById('inputStatus').value || 'Agendado',
+      observacao: document.getElementById('inputObservacao').value
+    };
+
+    var needsDate = payload.status !== 'Em definição' && payload.status !== 'Cancelado';
+    if (needsDate && !payload.dataDeploy) {
+      showMessage('Informe a data do deploy.', true);
+      btnSubmit.disabled = false;
+      btnSubmit.innerText = 'Confirmar Agendamento';
+      return;
+    }
+
+    var serverMethod = isEdit ? 'updateDeploySchedule' : 'saveDeploySchedule';
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      setTimeout(function() {
+        showMessage('Simulação: Deploy ' + (isEdit ? 'atualizado' : 'salvo') + '!', false);
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = 'Confirmar Agendamento';
+        setTimeout(function() {
+          close();
+          window.dispatchEvent(new CustomEvent('vdCore:deployScheduled'));
+        }, 1000);
+      }, 800);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = 'Confirmar Agendamento';
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            showMessage(resp.message, false);
+            setTimeout(function() {
+              close();
+              window.dispatchEvent(new CustomEvent('vdCore:deployScheduled'));
+            }, 1000);
+          } else {
+            showMessage(resp.message, true);
+          }
+        } catch(e) {
+          showMessage('Erro ao processar resposta do servidor.', true);
+        }
+      })
+      .withFailureHandler(function(err) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = 'Confirmar Agendamento';
+        showMessage('Falha no servidor: ' + err.message, true);
+      })[serverMethod](payload);
+  }
+
+  return {
+    init: function() {
+      window.addEventListener('vdCore:openDeployModal', function(e) {
+        var deployData = (e && e.detail) ? e.detail : null;
+        open(deployData);
+      });
+    },
+    open: open,
+    close: close,
+    handleSubmit: handleSubmit
+  };
+})();
+</script>

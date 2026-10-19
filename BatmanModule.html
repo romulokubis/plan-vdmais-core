@@ -1,0 +1,236 @@
+<div id="BatmanModuleContainer" class="flex flex-col gap-6 w-full">
+  
+  <!-- Card de Destaque: Dev Ativo / Batman da Vez -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/60">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🦇</span>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Batman da Vez (Sustentação Ativa)</h2>
+      </div>
+      <span id="batmanActiveBadge" class="hidden inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        Em Turno Ativo
+      </span>
+    </div>
+
+    <div id="activeBatmanCard" class="py-2">
+      <p class="text-xs text-slate-400 py-4">Carregando escala de sustentação...</p>
+    </div>
+  </div>
+
+  <!-- Tabela de Próximas Escalas e Histórico -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-4">Cronograma de Rodízio da Squad</h3>
+    
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <th class="py-3 px-3">ID</th>
+            <th class="py-3 px-3">Desenvolvedor</th>
+            <th class="py-3 px-3">Período</th>
+            <th class="py-3 px-3 text-center">Duração</th>
+            <th class="py-3 px-3 text-center">Status</th>
+            <th class="py-3 px-3">Observação</th>
+          </tr>
+        </thead>
+        <tbody id="batmanTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          <tr>
+            <td colspan="6" class="py-6 text-center text-xs text-slate-400">Carregando histórico de escalas...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.BatmanModule = (function() {
+  var state = {
+    activeDev: null,
+    schedules: []
+  };
+
+  function parseDate(str) {
+    if (!str) return null;
+    str = String(str).trim();
+    var iso = str.indexOf('-') !== -1;
+    var parts = iso ? str.split('-') : str.split('/');
+    if (parts.length !== 3) return null;
+
+    var year;
+    var month;
+    var day;
+    if (iso && parts[0].length === 4) {
+      year = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
+      day = parseInt(parts[2], 10);
+    } else {
+      day = parseInt(parts[0], 10);
+      month = parseInt(parts[1], 10) - 1;
+      year = parseInt(parts[2], 10);
+    }
+
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    return new Date(year, month, day);
+  }
+
+  function pickActiveDev(schedules) {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var found = null;
+
+    schedules.forEach(function(item) {
+      var start = parseDate(item.dataInicio);
+      var end = parseDate(item.dataFim);
+      if (!start || !end) return;
+      if (start.getTime() <= today && today <= end.getTime()) found = item;
+    });
+
+    return found;
+  }
+
+  function syncActiveBadge() {
+    var badge = document.getElementById('batmanActiveBadge');
+    if (!badge) return;
+    badge.classList.toggle('hidden', !state.activeDev);
+  }
+
+  function getInitials(name) {
+    if (!name) return '??';
+    var parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function getStatusBadge(status) {
+    var s = String(status).toLowerCase();
+    if (s === 'ativo') {
+      return '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-[#008775]/10 text-[#008775] dark:bg-[#2dd4bf]/20 dark:text-[#2dd4bf]">Ativo</span>';
+    }
+    if (s === 'programado') {
+      return '<span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Programado</span>';
+    }
+    return '<span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">Concluído</span>';
+  }
+
+  function renderActiveDev() {
+    var container = document.getElementById('activeBatmanCard');
+    if (!container) return;
+
+    syncActiveBadge();
+
+    if (!state.activeDev) {
+      container.innerHTML = '<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-500 text-sm">Nenhum turno da escala cobre a data de hoje.</div>';
+      return;
+    }
+
+    var dev = state.activeDev;
+    var initials = getInitials(dev.nome);
+    var obsHtml = dev.observacao ? '<span class="inline-block mt-1 text-[11px] text-slate-400">📌 ' + dev.observacao + '</span>' : '';
+
+    container.innerHTML = 
+      '<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/60">' +
+        '<div class="flex items-center gap-4">' +
+          '<div class="w-14 h-14 rounded-2xl bg-[#008775] text-white font-bold text-lg flex items-center justify-center shadow-md select-none shrink-0">' + initials + '</div>' +
+          '<div>' +
+            '<h3 class="text-base font-bold text-slate-900 dark:text-white">' + dev.nome + '</h3>' +
+            '<p class="text-xs text-slate-500 dark:text-slate-400 font-mono">' + dev.email + '</p>' +
+            obsHtml +
+          '</div>' +
+        '</div>' +
+        '<div class="flex flex-col sm:items-end gap-1 border-t sm:border-t-0 pt-3 sm:pt-0 w-full sm:w-auto border-slate-200 dark:border-slate-700">' +
+          '<span class="text-xs text-slate-400 font-medium">Período da Escala</span>' +
+          '<span class="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">' +
+            dev.dataInicio + ' → ' + dev.dataFim +
+          '</span>' +
+          '<span class="text-[11px] text-slate-400">Duração: ' + dev.duracaoSemanas + ' semana(s)</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderTable() {
+    var container = document.getElementById('batmanTableBody');
+    if (!container) return;
+
+    if (state.schedules.length === 0) {
+      container.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Nenhum registro encontrado na planilha.</td></tr>';
+      return;
+    }
+
+    var html = '';
+    state.schedules.forEach(function(item) {
+      var isCurrent = state.activeDev && item.id === state.activeDev.id;
+      var rowBg = isCurrent ? 'bg-[#008775]/5 dark:bg-[#2dd4bf]/5 font-semibold' : 'hover:bg-slate-50/80 dark:hover:bg-slate-700/30';
+
+      html += 
+        '<tr class="' + rowBg + ' transition-colors">' +
+          '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + item.id + '</td>' +
+          '<td class="py-3 px-3 text-slate-900 dark:text-slate-100">' +
+            '<div class="font-medium">' + item.nome + '</div>' +
+            '<div class="text-[11px] text-slate-400 font-mono">' + item.email + '</div>' +
+          '</td>' +
+          '<td class="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-300">' + item.dataInicio + ' à ' + item.dataFim + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-500">' + item.duracaoSemanas + ' sem</td>' +
+          '<td class="py-3 px-3 text-center">' + getStatusBadge(item.status) + '</td>' +
+          '<td class="py-3 px-3 text-xs text-slate-400 truncate max-w-[200px]" title="' + item.observacao + '">' + (item.observacao || '-') + '</td>' +
+        '</tr>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function fetchData() {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.schedules = [
+        { id: 'ESC-119', email: 'rodrigo.mazuco@grupoboticario.com.br', nome: 'Rodrigo Mazuco', dataInicio: '14/09/2026', dataFim: '25/09/2026', duracaoSemanas: '2', status: 'Ativo', observacao: 'Escala regular rotativa' },
+        { id: 'ESC-120', email: 'evio.brito@grupoboticario.com.br', nome: 'Évio De Brito', dataInicio: '28/09/2026', dataFim: '09/10/2026', duracaoSemanas: '2', status: 'Programado', observacao: 'Escala regular rotativa' }
+      ];
+      state.activeDev = pickActiveDev(state.schedules);
+      renderActiveDev();
+      renderTable();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (response.success) {
+            state.schedules = response.schedules || [];
+            state.activeDev = pickActiveDev(state.schedules);
+            renderActiveDev();
+            renderTable();
+          } else {
+            var card = document.getElementById('activeBatmanCard');
+            if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-medium">Erro na planilha: ' + response.message + '</p>';
+          }
+        } catch(e) {
+          var card = document.getElementById('activeBatmanCard');
+          if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2">Erro no parse: ' + e.toString() + '</p>';
+        }
+      })
+      .withFailureHandler(function(err) {
+        var card = document.getElementById('activeBatmanCard');
+        if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-bold">Falha no Apps Script: ' + err.message + '</p>';
+      })
+      .getEscalaBatman();
+  }
+
+  return {
+    init: function() {
+      fetchData();
+    },
+    show: function() {
+      var container = document.getElementById('BatmanModuleContainer');
+      if (container) container.classList.remove('hidden');
+      fetchData();
+    },
+    hide: function() {
+      var container = document.getElementById('BatmanModuleContainer');
+      if (container) container.classList.add('hidden');
+    }
+  };
+})();
+</script>

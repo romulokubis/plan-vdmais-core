@@ -1,0 +1,420 @@
+<div id="CapacityModuleContainer" class="flex flex-col gap-6 w-full">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Capacidade da Squad</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Horas efetivas de entrega da squad no período.</p>
+      </div>
+      <form id="capacity-filter" class="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div>
+          <label for="capacity-inicio" class="block text-xs font-semibold text-slate-500 mb-1">Início</label>
+          <input type="date" id="capacity-inicio" required class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+        </div>
+        <div>
+          <label for="capacity-fim" class="block text-xs font-semibold text-slate-500 mb-1">Fim</label>
+          <input type="date" id="capacity-fim" required class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+        </div>
+        <button type="button" id="capacity-month" class="px-4 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200">Este mês</button>
+        <button type="submit" class="px-4 py-2 text-xs font-bold rounded-lg bg-[#008775] text-white">Consultar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total da squad</p>
+      <p id="capacity-total" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Período</p>
+      <p id="capacity-period" class="mt-2 text-sm font-bold text-slate-900 dark:text-white">—</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ritos no período</p>
+      <p id="capacity-rituals" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Horas por mês</h3>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Horas efetivas da squad em cada mês do período filtrado.</p>
+    <div id="capacity-message" class="hidden mb-4 text-xs text-red-600 dark:text-red-300"></div>
+    <div class="h-64"><canvas id="capacityChart"></canvas></div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Entregas históricas versus projeção</h3>
+    <p id="throughput-note" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">A comparação usa períodos do mesmo tamanho do filtro.</p>
+    <div id="throughput-message" class="hidden mt-4 text-xs text-red-600 dark:text-red-300"></div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário conservador (85%)</p>
+        <p id="throughput-low" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mediana</p>
+        <p id="throughput-mid" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário otimista (15%)</p>
+        <p id="throughput-high" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+    </div>
+    <p id="throughput-scope" class="text-xs text-slate-500 dark:text-slate-400 mt-4 mb-4"></p>
+    <div class="h-64"><canvas id="comparisonChart"></canvas></div>
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white mt-6">Histórico usado nas simulações</h3>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Cards entregues em cada mês do histórico. Este gráfico não é a projeção.</p>
+    <div class="h-64"><canvas id="throughputChart"></canvas></div>
+  </div>
+</div>
+
+<script>
+window.CapacityModule = (function() {
+  var chart = null;
+  var comparisonChart = null;
+  var throughputChart = null;
+  var state = { meses: [], historico: [], comparacao: null };
+  var monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+  function pad(n) {
+    return n < 10 ? '0' + n : String(n);
+  }
+
+  function toInputDate(date) {
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+  }
+
+  function monthRange() {
+    var now = new Date();
+    return {
+      inicio: toInputDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+      fim: toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+    };
+  }
+
+  function formatHours(value) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    });
+  }
+
+  function monthLabel(key) {
+    var parts = String(key || '').split('-');
+    var month = Number(parts[1]);
+    if (!parts[0] || !monthNames[month - 1]) return key;
+    return monthNames[month - 1] + '/' + parts[0];
+  }
+
+  function palette() {
+    var dark = document.documentElement.classList.contains('dark');
+    return {
+      line: dark ? '#2dd4bf' : '#0d9488',
+      bar: dark ? '#94a3b8' : '#64748b',
+      text: dark ? '#e2e8f0' : '#334155',
+      grid: dark ? '#334155' : '#e2e8f0'
+    };
+  }
+
+  function renderChart() {
+    var canvas = document.getElementById('capacityChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    var colors = palette();
+    if (chart) chart.destroy();
+    chart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: state.meses.map(function(item) { return monthLabel(item.mes); }),
+        datasets: [{
+          label: 'Horas efetivas no mês',
+          data: state.meses.map(function(item) { return item.horas; }),
+          backgroundColor: colors.line
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: colors.text } } },
+        scales: {
+          x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+          y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  function monthKeyFromInput(value) {
+    var parts = String(value || '').split('-');
+    if (parts.length < 2 || !parts[0] || !parts[1]) return '';
+    return parts[0] + '-' + parts[1];
+  }
+
+  function periodLabel(startKey, endKey) {
+    if (!startKey) return '';
+    if (!endKey || startKey === endKey) return monthLabel(startKey);
+    var start = String(startKey).split('-');
+    var end = String(endKey).split('-');
+    var startName = monthNames[Number(start[1]) - 1];
+    var endName = monthNames[Number(end[1]) - 1];
+    if (start[0] === end[0] && startName && endName) return startName + '–' + endName + '/' + start[0];
+    return monthLabel(startKey) + '–' + monthLabel(endKey);
+  }
+
+  function groupHistory(historico, horizon) {
+    var groups = [];
+    var index = 0;
+    while (index < historico.length) {
+      var slice = historico.slice(index, index + horizon);
+      var total = 0;
+      slice.forEach(function(item) { total += Number(item.cards) || 0; });
+      groups.push({
+        label: periodLabel(slice[0].mes, slice[slice.length - 1].mes),
+        cards: total
+      });
+      index += horizon;
+    }
+    return groups;
+  }
+
+  function renderComparisonChart() {
+    var canvas = document.getElementById('comparisonChart');
+    if (!canvas || typeof Chart === 'undefined' || !state.comparacao) return;
+    var colors = palette();
+    var comparacao = state.comparacao;
+    if (comparisonChart) comparisonChart.destroy();
+    comparisonChart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: comparacao.labels,
+        datasets: [
+          {
+            label: 'Cards entregues',
+            data: comparacao.entregues,
+            backgroundColor: colors.bar,
+            skipNull: true
+          },
+          {
+            label: 'Intervalo da projeção',
+            data: comparacao.intervalo,
+            backgroundColor: colors.line,
+            skipNull: true
+          },
+          {
+            type: 'line',
+            label: 'Mediana da projeção',
+            data: comparacao.mediana,
+            borderColor: colors.text,
+            backgroundColor: colors.text,
+            pointRadius: 6,
+            pointHoverRadius: 7,
+            showLine: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: colors.text } } },
+        scales: {
+          x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+          y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  function renderThroughputChart() {
+    var canvas = document.getElementById('throughputChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    var colors = palette();
+    if (throughputChart) throughputChart.destroy();
+    throughputChart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: state.historico.map(function(item) { return monthLabel(item.mes); }),
+        datasets: [{
+          label: 'Cards entregues',
+          data: state.historico.map(function(item) { return item.cards; }),
+          backgroundColor: colors.bar
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: colors.text } } },
+        scales: {
+          x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
+          y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true }
+        }
+      }
+    });
+  }
+
+  function formatCards(value) {
+    return Number(value || 0).toLocaleString('pt-BR');
+  }
+
+  function renderForecast(data) {
+    state.historico = data.historico || [];
+    document.getElementById('throughput-low').textContent = formatCards(data.peloMenos);
+    document.getElementById('throughput-mid').textContent = formatCards(data.mediana);
+    document.getElementById('throughput-high').textContent = formatCards(data.teto);
+    var horizon = Number(data.horizonteMeses) || 1;
+    var groups = groupHistory(state.historico, horizon);
+    var projectionLabel = periodLabel(
+      monthKeyFromInput(document.getElementById('capacity-inicio').value),
+      monthKeyFromInput(document.getElementById('capacity-fim').value)
+    );
+    var entregues = groups.map(function(group) { return group.cards; });
+    var intervalo = groups.map(function() { return null; });
+    var mediana = groups.map(function() { return null; });
+    entregues.push(null);
+    intervalo.push([Number(data.peloMenos) || 0, Number(data.teto) || 0]);
+    mediana.push(Number(data.mediana) || 0);
+    state.comparacao = {
+      labels: groups.map(function(group) { return group.label; }).concat([projectionLabel || 'Projeção']),
+      entregues: entregues,
+      intervalo: intervalo,
+      mediana: mediana
+    };
+    var tamanho = horizon === 1 ? '1 mês' : horizon + ' meses';
+    var note = 'Comparação em períodos de ' + tamanho +
+      '. O intervalo projetado foi obtido em ' + formatCards(data.simulacoes || 10000) +
+      ' simulações com base no throughput de ' + monthLabel(data.historicoInicio) +
+      ' a ' + monthLabel(data.historicoFim) + '.';
+    if (!data.mesesCheios) {
+      note += ' O período filtrado não fecha meses inteiros: a previsão usa meses cheios e as horas usam os dias escolhidos.';
+    }
+    document.getElementById('throughput-note').textContent = note;
+    document.getElementById('throughput-scope').textContent =
+      'VD Plataforma Core · De ' + monthLabel(data.historicoInicio) + ' a ' + monthLabel(data.historicoFim) +
+      '. Cada mês entra nas simulações com o mesmo peso. Resultado de ' +
+      formatCards(data.simulacoes || 10000) +
+      ' simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)';
+    renderComparisonChart();
+    renderThroughputChart();
+  }
+
+  function showForecastMessage(message) {
+    var box = document.getElementById('throughput-message');
+    box.textContent = message;
+    box.classList.remove('hidden');
+  }
+
+  function render(data) {
+    state.meses = data.meses || [];
+    document.getElementById('capacity-total').textContent = formatHours(data.total) + ' h';
+    document.getElementById('capacity-period').textContent = data.inicio + ' → ' + data.fim;
+    document.getElementById('capacity-rituals').textContent = formatHours(data.rituais) + ' h';
+    renderChart();
+  }
+
+  function showMessage(message) {
+    var box = document.getElementById('capacity-message');
+    box.textContent = message;
+    box.classList.remove('hidden');
+  }
+
+  function loadHours(inicio, fim) {
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (!response.success) {
+            showMessage(response.message || 'Não foi possível calcular a capacidade.');
+            return;
+          }
+          render(response);
+        } catch (e) {
+          showMessage('Resposta inválida do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showMessage(err && err.message ? err.message : 'Falha no servidor.');
+      })
+      .getCapacity({ inicio: inicio, fim: fim });
+  }
+
+  function loadForecast(inicio, fim) {
+    document.getElementById('throughput-low').textContent = '…';
+    document.getElementById('throughput-mid').textContent = '…';
+    document.getElementById('throughput-high').textContent = '…';
+    document.getElementById('throughput-note').textContent = 'Consultando o histórico de entrega.';
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (!response.success) {
+            document.getElementById('throughput-low').textContent = '—';
+            document.getElementById('throughput-mid').textContent = '—';
+            document.getElementById('throughput-high').textContent = '—';
+            showForecastMessage(response.message || 'Não foi possível calcular a previsão.');
+            return;
+          }
+          renderForecast(response);
+        } catch (e) {
+          showForecastMessage('Resposta inválida do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('throughput-low').textContent = '—';
+        document.getElementById('throughput-mid').textContent = '—';
+        document.getElementById('throughput-high').textContent = '—';
+        showForecastMessage(err && err.message ? err.message : 'Falha no servidor.');
+      })
+      .getThroughputForecast({ inicio: inicio, fim: fim });
+  }
+
+  function load() {
+    var inicio = document.getElementById('capacity-inicio').value;
+    var fim = document.getElementById('capacity-fim').value;
+    document.getElementById('capacity-message').classList.add('hidden');
+    document.getElementById('throughput-message').classList.add('hidden');
+
+    if (!inicio || !fim) {
+      showMessage('Informe o início e o fim do período.');
+      showForecastMessage('Informe o início e o fim do período.');
+      return;
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      showMessage('A consulta depende do Apps Script publicado.');
+      showForecastMessage('A consulta depende do Apps Script publicado.');
+      return;
+    }
+
+    loadHours(inicio, fim);
+    loadForecast(inicio, fim);
+  }
+
+  return {
+    init: function() {
+      var range = monthRange();
+      document.getElementById('capacity-inicio').value = range.inicio;
+      document.getElementById('capacity-fim').value = range.fim;
+      document.getElementById('capacity-month').addEventListener('click', function() {
+        var current = monthRange();
+        document.getElementById('capacity-inicio').value = current.inicio;
+        document.getElementById('capacity-fim').value = current.fim;
+        load();
+      });
+      document.getElementById('capacity-filter').addEventListener('submit', function(event) {
+        event.preventDefault();
+        load();
+      });
+      window.addEventListener('vdCore:themeChanged', function() {
+        var view = document.getElementById('view-capacity');
+        if (view && !view.classList.contains('hidden')) {
+          renderChart();
+          renderComparisonChart();
+          renderThroughputChart();
+        }
+      });
+      load();
+    },
+    show: function() {
+      load();
+    }
+  };
+})();
+</script>

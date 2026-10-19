@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engenharia vd+ Core</title>
+
+  <!-- Favicon vd+ Base64 SVG -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8cmVjdCB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHJ4PSIxNCIgZmlsbD0iI2ZmZmZmZiIvPgogIDx0ZXh0IHg9IjYiIHk9IjQzIiBmb250LWZhbWlseT0iQXJpYWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjkwMCIgZm9udC1zaXplPSIzMCIgZmlsbD0iIzAwMDAwMCI+dmQ8L3RleHQ+CiAgPHJlY3QgeD0iNDQiIHk9IjE2IiB3aWR0aD0iNSIgaGVpZ2h0PSIzMiIgcng9IjIuNSIgZmlsbD0iIzcwYjgyZCIvPgogIDxyZWN0IHg9IzM1IiB5PSIyOS41IiB3aWR0aD0iOSIgaGVpZ2h0PSI1IiByeD0iMiIgZmlsbD0iI2Y1OWUwYiIvPgogIDxyZWN0IHg9IjQ5IiB5PSIyOS41IiB3aWR0aD0iOSIgaGVpZ2h0PSI1IiByeD0iIzBlYTVlOSIvPgo8L3N2Zz4=">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#e6f3f1',
+              500: '#008775',
+              600: '#006e5f',
+              700: '#005549'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .dark ::-webkit-scrollbar-thumb { background: #475569; }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
+
+  <!-- Container Principal do Shell -->
+  <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col gap-6">
+
+    <!-- Módulo de Cabeçalho (Header) -->
+    <?!= include('HeaderModule'); ?>
+
+    <!-- Barra de Navegação por Abas -->
+    <nav class="flex border-b border-slate-200 dark:border-slate-700/80 gap-6 overflow-x-auto no-scrollbar">
+      <button onclick="AppShell.switchTab('capacity')" id="tab-capacity" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        📊 Capacidade da Squad
+      </button>
+      <button onclick="AppShell.switchTab('batman')" id="tab-batman" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        🦇 Escala de sustentação / Batman
+      </button>
+      <button onclick="AppShell.switchTab('calendar')" id="tab-calendar" class="py-3 text-xs font-bold border-b-2 border-[#008775] text-[#008775] dark:text-[#2dd4bf] flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        📅 Calendário de Deploy
+      </button>
+      <button onclick="AppShell.switchTab('holidays')" id="tab-holidays" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        🌴 Feriados & Recesso
+      </button>
+      <button onclick="AppShell.switchTab('releasenotes')" id="tab-releasenotes" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        📦 Release Notes
+      </button>
+    </nav>
+
+    <!-- Área Principal de Exibição das Views -->
+    <main class="flex-1 w-full">
+      <div id="view-capacity" class="tab-view hidden">
+        <?!= include('CapacityModule'); ?>
+      </div>
+      <div id="view-batman" class="tab-view hidden">
+        <?!= include('BatmanModule'); ?>
+      </div>
+      <div id="view-calendar" class="tab-view">
+        <?!= include('CalendarModule'); ?>
+      </div>
+      <div id="view-holidays" class="tab-view hidden">
+        <?!= include('HolidaysModule'); ?>
+      </div>
+      <div id="view-releasenotes" class="tab-view hidden">
+        <?!= include('ReleaseNotesModule'); ?>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Modais Globais -->
+  <?!= include('DeployModal'); ?>
+
+  <!-- Script de Controle do Shell Principal -->
+  <script>
+    window.AppShell = (function() {
+      var currentTab = 'calendar';
+      var permissions = {
+        email: '',
+        canEdit: false
+      };
+
+      function fetchPermissions() {
+        if (typeof google === 'undefined' || !google.script || !google.script.run) {
+          permissions.canEdit = true;
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(responseStr) {
+            try {
+              var resp = JSON.parse(responseStr);
+              if (resp.success) {
+                permissions.email = resp.email;
+                permissions.canEdit = resp.canEdit;
+                window.dispatchEvent(new CustomEvent('vdCore:permissionsLoaded', { detail: permissions }));
+              }
+            } catch(e) {}
+          })
+          .getUserPermissions();
+      }
+
+      function switchTab(tabId) {
+        currentTab = tabId;
+
+        document.querySelectorAll('.tab-view').forEach(function(el) {
+          el.classList.add('hidden');
+        });
+
+        ['capacity', 'batman', 'calendar', 'holidays', 'releasenotes'].forEach(function(t) {
+          var btn = document.getElementById('tab-' + t);
+          if (btn) {
+            btn.className = "py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer";
+          }
+        });
+
+        var activeView = document.getElementById('view-' + tabId);
+        if (activeView) activeView.classList.remove('hidden');
+
+        var activeBtn = document.getElementById('tab-' + tabId);
+        if (activeBtn) {
+          activeBtn.className = "py-3 text-xs font-bold border-b-2 border-[#008775] text-[#008775] dark:text-[#2dd4bf] flex items-center gap-2 shrink-0 transition-all cursor-pointer";
+        }
+
+        if (tabId === 'calendar' && window.CalendarModule && window.CalendarModule.show) {
+          window.CalendarModule.show();
+        } else if (tabId === 'holidays' && window.HolidaysModule && window.HolidaysModule.show) {
+          window.HolidaysModule.show();
+        } else if (tabId === 'batman' && window.BatmanModule && window.BatmanModule.show) {
+          window.BatmanModule.show();
+        } else if (tabId === 'capacity' && window.CapacityModule && window.CapacityModule.show) {
+          window.CapacityModule.show();
+        } else if (tabId === 'releasenotes' && window.ReleaseNotesModule && window.ReleaseNotesModule.show) {
+          window.ReleaseNotesModule.show();
+        }
+      }
+
+      function initModules() {
+        fetchPermissions();
+        if (window.HeaderModule && window.HeaderModule.init) window.HeaderModule.init();
+        if (window.CapacityModule && window.CapacityModule.init) window.CapacityModule.init();
+        if (window.BatmanModule && window.BatmanModule.init) window.BatmanModule.init();
+        if (window.CalendarModule && window.CalendarModule.init) window.CalendarModule.init();
+        if (window.HolidaysModule && window.HolidaysModule.init) window.HolidaysModule.init();
+        if (window.ReleaseNotesModule && window.ReleaseNotesModule.init) window.ReleaseNotesModule.init();
+        if (window.DeployModal && window.DeployModal.init) window.DeployModal.init();
+      }
+
+      document.addEventListener('DOMContentLoaded', function() {
+        initModules();
+        switchTab('calendar');
+      });
+
+      return {
+        switchTab: switchTab,
+        canEdit: function() { return permissions.canEdit; },
+        getUserEmail: function() { return permissions.email; }
+      };
+    })();
+  </script>
+</body>
+</html>

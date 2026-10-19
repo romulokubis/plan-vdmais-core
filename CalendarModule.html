@@ -1,0 +1,345 @@
+<div id="CalendarModuleContainer" class="flex flex-col gap-6 w-full">
+  
+  <!-- Header Principal e Ações -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Calendário de Deploy</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Agendamentos e janelas de lançamento da squad vd+ Core</p>
+    </div>
+    
+    <!-- Botão + Agendar Deploy (Controlado por RBAC) -->
+    <button id="btnScheduleDeploy" onclick="CalendarModule.openDeployModal()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
+      <span>+</span> Agendar Deploy
+    </button>
+  </div>
+
+  <!-- Container de Deploys Agrupados por Mês -->
+  <div id="releasesListContainer" class="space-y-6">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-8 text-center text-xs text-slate-400">
+      Carregando agendamentos de deploy...
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.CalendarModule = (function() {
+  
+  var state = {
+    deploys: [],
+    canEdit: false
+  };
+
+  var MONTH_NAMES = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+
+  function getFlagBadgeHtml(instancia) {
+    if (!instancia) return '';
+    var inst = String(instancia).toLowerCase().trim();
+    
+    if (inst.indexOf('portugal') !== -1) {
+      return '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 shrink-0 select-none" title="Portugal">' +
+               '<svg class="w-3.5 h-2.5 rounded-xs overflow-hidden shrink-0 shadow-xs" viewBox="0 0 640 480">' +
+                 '<rect width="240" height="480" fill="#006600"/>' +
+                 '<rect x="240" width="400" height="480" fill="#ff0000"/>' +
+                 '<circle cx="240" cy="240" r="70" fill="#ffcc00"/>' +
+               '</svg>' +
+               '<span>PT</span>' +
+             '</span>';
+    }
+    
+    if (inst.indexOf('colômbia') !== -1 || inst.indexOf('colombia') !== -1) {
+      return '<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/80 shrink-0 select-none" title="Colômbia">' +
+               '<svg class="w-3.5 h-2.5 rounded-xs overflow-hidden shrink-0 shadow-xs" viewBox="0 0 640 480">' +
+                 '<rect width="640" height="240" fill="#ffcd00"/>' +
+                 '<rect y="240" width="640" height="120" fill="#003087"/>' +
+                 '<rect y="360" width="640" height="120" fill="#c8102e"/>' +
+               '</svg>' +
+               '<span>CO</span>' +
+             '</span>';
+    }
+    
+    return '';
+  }
+
+  function getStatusBadgeClass(status) {
+    var st = String(status || '').toLowerCase().trim();
+    if (st === 'concluído' || st === 'concluido') {
+      return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+    }
+    if (st === 'em definição' || st === 'em definicao') {
+      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+    }
+    return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+  }
+
+  function applyPermissionsUI() {
+    var btn = document.getElementById('btnScheduleDeploy');
+    if (!btn) return;
+    
+    if (state.canEdit) {
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+    }
+  }
+
+  function checkUserPermissions() {
+    if (window.AppShell && typeof window.AppShell.canEdit === 'function') {
+      state.canEdit = window.AppShell.canEdit();
+      applyPermissionsUI();
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.canEdit = true;
+      applyPermissionsUI();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            state.canEdit = resp.canEdit;
+            applyPermissionsUI();
+            renderDeploys();
+          }
+        } catch(e) {}
+      })
+      .getUserPermissions();
+  }
+
+  function parseMonthYear(dateStr) {
+    if (!dateStr) return { key: '9999-99', label: 'Outros Deploys' };
+    
+    var parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
+    var year, monthIdx;
+
+    if (dateStr.includes('-')) {
+      year = parts[0];
+      monthIdx = parseInt(parts[1], 10) - 1;
+    } else {
+      year = parts[2];
+      monthIdx = parseInt(parts[1], 10) - 1;
+    }
+
+    if (isNaN(monthIdx) || monthIdx < 0 || monthIdx > 11) {
+      return { key: '9999-99', label: 'Outros Deploys' };
+    }
+
+    var monthName = MONTH_NAMES[monthIdx];
+    return {
+      key: year + '-' + String(monthIdx + 1).padStart(2, '0'),
+      label: monthName + ' de ' + year
+    };
+  }
+
+  function groupDeploysByMonth(deploys) {
+    var groups = {};
+
+    deploys.forEach(function(dep) {
+      var monthInfo = parseMonthYear(dep.dataDeploy || dep.dataInicio);
+      if (!groups[monthInfo.key]) {
+        groups[monthInfo.key] = {
+          label: monthInfo.label,
+          items: []
+        };
+      }
+      groups[monthInfo.key].items.push(dep);
+    });
+
+    var sortedKeys = Object.keys(groups).sort();
+    return sortedKeys.map(function(k) {
+      return groups[k];
+    });
+  }
+
+  function editDeploy(id) {
+    if (!state.canEdit) return;
+    var found = state.deploys.find(function(item) { return item.id === id; });
+    if (found) {
+      window.dispatchEvent(new CustomEvent('vdCore:openDeployModal', { detail: found }));
+    }
+  }
+
+  function deleteDeploy(id) {
+    if (!state.canEdit || !id) return;
+    
+    var confirmMsg = 'Tem certeza que deseja remover o agendamento ' + id + '?';
+    if (!confirm(confirmMsg)) return;
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.deploys = state.deploys.filter(function(d) { return d.id !== id; });
+      renderDeploys();
+      window.dispatchEvent(new CustomEvent('vdCore:deployScheduled'));
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            window.dispatchEvent(new CustomEvent('vdCore:deployScheduled'));
+          } else {
+            alert('Erro ao excluir: ' + resp.message);
+          }
+        } catch(e) {
+          alert('Erro ao processar resposta do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        alert('Falha no servidor: ' + err.message);
+      })
+      .deleteDeploySchedule(id);
+  }
+
+  function renderDeploys() {
+    var container = document.getElementById('releasesListContainer');
+    if (!container) return;
+
+    if (state.deploys.length === 0) {
+      container.innerHTML = 
+        '<div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-8 text-center text-xs text-slate-400">' +
+          'Nenhum deploy agendado no momento.' +
+        '</div>';
+      return;
+    }
+
+    var groupedData = groupDeploysByMonth(state.deploys);
+    var html = '';
+
+    groupedData.forEach(function(group) {
+      html += 
+        '<div class="space-y-3">' +
+          '<div class="flex items-center gap-2 px-1">' +
+            '<span class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">📅 ' + group.label + '</span>' +
+            '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300">' + group.items.length + '</span>' +
+            '<div class="flex-1 border-b border-slate-200/60 dark:border-slate-700/60 ml-2"></div>' +
+          '</div>' +
+          
+          '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">';
+
+      group.items.forEach(function(dep) {
+        var devWindow = (dep.dataInicio || '-') + ' → ' + (dep.dataFim || '-');
+        var flagBadge = getFlagBadgeHtml(dep.instancia);
+        var statusClass = getStatusBadgeClass(dep.status);
+        
+        var actionButtonsHtml = '';
+        if (state.canEdit) {
+          actionButtonsHtml = 
+            '<button onclick="CalendarModule.editDeploy(\'' + dep.id + '\')" title="Editar Deploy" class="p-1 rounded-md text-slate-400 hover:text-[#008775] dark:hover:text-[#2dd4bf] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs">' +
+              '✏️' +
+            '</button>' +
+            '<button onclick="CalendarModule.deleteDeploy(\'' + dep.id + '\')" title="Excluir Deploy" class="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs">' +
+              '🗑️' +
+            '</button>';
+        }
+
+        html += 
+          '<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 p-4 shadow-sm hover:shadow-md hover:border-[#008775]/50 transition-all flex flex-col justify-between gap-3 group relative">' +
+            '<div class="space-y-2">' +
+              '<div class="flex justify-between items-center gap-1.5">' +
+                '<div class="flex items-center gap-1.5 truncate max-w-[150px]">' +
+                  flagBadge +
+                  '<span class="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-300 truncate" title="' + dep.releaseSistema + '">' + dep.releaseSistema + '</span>' +
+                '</div>' +
+                
+                '<div class="flex items-center gap-1 shrink-0">' +
+                  actionButtonsHtml +
+                  '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border ' + statusClass + '">' +
+                    dep.status +
+                  '</span>' +
+                '</div>' +
+              '</div>' +
+
+              '<div>' +
+                '<h4 class="font-bold text-slate-900 dark:text-white text-sm leading-tight">' + dep.releaseTribo + '</h4>' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex justify-between items-end text-xs">' +
+              '<div class="flex flex-col">' +
+                '<span class="text-[10px] text-slate-400 font-medium">Janela Dev</span>' +
+                '<span class="font-mono text-[11px] text-slate-600 dark:text-slate-300">' + devWindow + '</span>' +
+              '</div>' +
+
+              '<div class="text-right">' +
+                '<span class="text-[10px] uppercase font-bold text-slate-400 block">Deploy</span>' +
+                '<span class="font-mono text-xs font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">' + dep.dataDeploy + '</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      });
+
+      html += 
+          '</div>' +
+        '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function fetchDeploysData() {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.deploys = [
+        { id: 'REL-001', releaseTribo: 'Release 5.16', releaseSistema: 'VD Core Microservice', dataInicio: '01/09/2026', dataFim: '15/09/2026', dataDeploy: '16/09/2026', status: 'Agendado', instancia: 'Portugal' },
+        { id: 'REL-002', releaseTribo: 'Release 5.17', releaseSistema: 'Portal Checkout', dataInicio: '16/09/2026', dataFim: '28/09/2026', dataDeploy: '29/09/2026', status: 'Agendado', instancia: 'Colômbia' }
+      ];
+      renderDeploys();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            state.deploys = resp.data;
+            renderDeploys();
+          }
+        } catch(e) {}
+      })
+      .getDeploysScheduled();
+  }
+
+  return {
+    init: function() {
+      checkUserPermissions();
+      fetchDeploysData();
+
+      window.addEventListener('vdCore:permissionsLoaded', function(e) {
+        if (e && e.detail) {
+          state.canEdit = e.detail.canEdit;
+          applyPermissionsUI();
+          renderDeploys();
+        }
+      });
+
+      window.addEventListener('vdCore:deployScheduled', function() {
+        fetchDeploysData();
+      });
+    },
+    editDeploy: editDeploy,
+    deleteDeploy: deleteDeploy,
+    show: function() {
+      var container = document.getElementById('CalendarModuleContainer');
+      if (container) container.classList.remove('hidden');
+      checkUserPermissions();
+      fetchDeploysData();
+    },
+    hide: function() {
+      var container = document.getElementById('CalendarModuleContainer');
+      if (container) container.classList.add('hidden');
+    },
+    openDeployModal: function() {
+      if (!state.canEdit) return;
+      window.dispatchEvent(new CustomEvent('vdCore:openDeployModal'));
+    }
+  };
+
+})();
+</script>
