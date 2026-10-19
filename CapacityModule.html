@@ -62,9 +62,11 @@
     </div>
     <p id="throughput-scope" class="text-xs text-slate-500 dark:text-slate-400 mt-4 mb-4"></p>
     <div class="h-64"><canvas id="comparisonChart"></canvas></div>
-    <h3 class="text-sm font-bold text-slate-900 dark:text-white mt-6">Histórico usado nas simulações</h3>
-    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Cards entregues em cada mês do histórico. Este gráfico não é a projeção.</p>
-    <div class="h-64"><canvas id="throughputChart"></canvas></div>
+    <div id="throughput-history" class="hidden">
+      <h3 class="text-sm font-bold text-slate-900 dark:text-white mt-6">Histórico usado nas simulações</h3>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Cards entregues em cada mês do histórico. Este gráfico não é a projeção.</p>
+      <div class="h-64"><canvas id="throughputChart"></canvas></div>
+    </div>
   </div>
 </div>
 
@@ -191,23 +193,31 @@ window.CapacityModule = (function() {
             label: 'Cards entregues',
             data: comparacao.entregues,
             backgroundColor: colors.bar,
-            skipNull: true
+            stack: 'comparacao',
+            skipNull: true,
+            order: 2
           },
           {
             label: 'Intervalo da projeção',
             data: comparacao.intervalo,
             backgroundColor: colors.line,
-            skipNull: true
+            stack: 'comparacao',
+            skipNull: true,
+            order: 2
           },
           {
             type: 'line',
             label: 'Mediana da projeção',
             data: comparacao.mediana,
-            borderColor: colors.text,
-            backgroundColor: colors.text,
-            pointRadius: 6,
-            pointHoverRadius: 7,
-            showLine: false
+            borderColor: '#ffffff',
+            backgroundColor: '#0f172a',
+            pointRadius: 7,
+            pointHoverRadius: 8,
+            pointBorderWidth: 2,
+            pointBorderColor: '#ffffff',
+            pointBackgroundColor: '#0f172a',
+            showLine: false,
+            order: 0
           }
         ]
       },
@@ -291,8 +301,15 @@ window.CapacityModule = (function() {
       '. Cada mês entra nas simulações com o mesmo peso. Resultado de ' +
       formatCards(data.simulacoes || 10000) +
       ' simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)';
+    var historyBox = document.getElementById('throughput-history');
+    historyBox.classList.toggle('hidden', horizon === 1);
     renderComparisonChart();
-    renderThroughputChart();
+    if (horizon > 1) {
+      renderThroughputChart();
+    } else if (throughputChart) {
+      throughputChart.destroy();
+      throughputChart = null;
+    }
   }
 
   function showForecastMessage(message) {
@@ -407,7 +424,9 @@ window.CapacityModule = (function() {
         if (view && !view.classList.contains('hidden')) {
           renderChart();
           renderComparisonChart();
-          renderThroughputChart();
+          if (state.comparacao && document.getElementById('throughput-history') && !document.getElementById('throughput-history').classList.contains('hidden')) {
+            renderThroughputChart();
+          }
         }
       });
       load();

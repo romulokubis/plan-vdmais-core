@@ -65,10 +65,69 @@ function getUserPermissions() {
   try {
     var email = Session.getActiveUser().getEmail() || '';
     var canEdit = isUserAuthorized();
-    return JSON.stringify({ success: true, email: email, canEdit: canEdit });
+    var member = findSquadMemberByEmail(email);
+    var papel = member ? member.papel : '';
+    var isManager = isManagerPapel(papel);
+    return JSON.stringify({
+      success: true,
+      email: email,
+      canEdit: canEdit,
+      isManager: isManager,
+      papel: papel
+    });
   } catch (e) {
-    return JSON.stringify({ success: false, canEdit: false, message: e.toString() });
+    return JSON.stringify({
+      success: false,
+      canEdit: false,
+      isManager: false,
+      message: e.toString()
+    });
   }
+}
+
+function isManagerPapel(papel) {
+  return normalizePlace(papel) === 'tech manager';
+}
+
+function findSquadMemberByEmail(email) {
+  var target = String(email || '').trim().toLowerCase();
+  if (!target) return null;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return null;
+
+  var rows = sheetRows(ss, 'Integrantes_Squad');
+  for (var i = 0; i < rows.length; i++) {
+    var rowEmail = String(rows[i][2] || '').trim().toLowerCase();
+    if (rowEmail === target) {
+      return {
+        id: String(rows[i][0] || '').trim(),
+        nome: String(rows[i][1] || '').trim(),
+        email: rowEmail,
+        papel: String(rows[i][3] || '').trim()
+      };
+    }
+  }
+  return null;
+}
+
+function getCurrentActor() {
+  var email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+  var member = findSquadMemberByEmail(email);
+  return {
+    email: email,
+    authorized: !!member,
+    isManager: member ? isManagerPapel(member.papel) : false,
+    nome: member ? member.nome : '',
+    papel: member ? member.papel : ''
+  };
+}
+
+function canActOnAbsenceTarget(actor, targetEmail) {
+  var target = String(targetEmail || '').trim().toLowerCase();
+  if (!actor || !actor.authorized || !target) return false;
+  if (actor.isManager) return !!findSquadMemberByEmail(target);
+  return actor.email === target;
 }
 
 function pad2(n) {
@@ -154,6 +213,467 @@ function nextReleaseId(sheet) {
   var num = String(max + 1);
   while (num.length < 3) num = '0' + num;
   return 'REL-' + num;
+}
+
+function padIdNumber(n) {
+  var num = String(n);
+  while (num.length < 3) num = '0' + num;
+  return num;
+}
+
+function nextAbsenceId(sheet) {
+  var data = sheet.getDataRange().getDisplayValues();
+  var max = 0;
+  for (var i = 1; i < data.length; i++) {
+    var match = String(data[i][0] || '').trim().match(/^AUS-(\d+)$/i);
+    if (!match) continue;
+    var n = parseInt(match[1], 10);
+    if (n > max) max = n;
+  }
+  return 'AUS-' + padIdNumber(max + 1);
+}
+
+var ABSENCE_HEADERS = [
+  'ID',
+  'Desenvolvedor',
+  'Data_Inicio',
+  'Data_Fim',
+  'Tipo',
+  'Modalidade',
+  'Horas',
+  'Observacao',
+  'Criado_Por',
+  'Status'
+];
+
+function normalizeHeaderKey(value) {
+  return normalizePlace(value).replace(/\s+/g, '_');
+}
+
+function isLegacyAbsencesSheet(headers, firstDataRow) {
+  var h0 = normalizeHeaderKey(headers[0]);
+  if (h0 === 'id') return false;
+  if (h0 === 'desenvolvedor') return true;
+  if (firstDataRow && String(firstDataRow[0] || '').indexOf('@') !== -1) return true;
+  return false;
+}
+
+function ensureAbsencesSheet(ss) {
+  var sheet = ss.getSheetByName('Ausencias_e_Eventos');
+  if (!sheet) {
+    sheet = ss.insertSheet('Ausencias_e_Eventos');
+    sheet.appendRow(ABSENCE_HEADERS);
+    return sheet;
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  var firstData = lastRow > 1 ? sheet.getRange(2, 1, 1, lastCol).getDisplayValues()[0] : null;
+
+  if (isLegacyAbsencesSheet(headers, firstData)) {
+    var legacy = sheet.getDataRange().getDisplayValues();
+    var migrated = [ABSENCE_HEADERS];
+    for (var i = 1; i < legacy.length; i++) {
+      var row = legacy[i];
+      var email = String(row[0] || '').trim();
+      if (!email) continue;
+      var hoursText = String(row[4] || '').trim();
+      migrated.push([
+        'AUS-' + padIdNumber(i),
+        email,
+        String(row[1] || '').trim(),
+        String(row[2] || '').trim(),
+        String(row[3] || '').trim(),
+        hoursText === '' ? 'Dia' : 'Hora',
+        hoursText,
+        '',
+        '',
+        'Ativo'
+      ]);
+    }
+    sheet.clear();
+    sheet.getRange(1, 1, migrated.length, ABSENCE_HEADERS.length).setValues(migrated);
+    return sheet;
+  }
+
+  var headerMap = {};
+  headers.forEach(function(h, idx) {
+    headerMap[normalizeHeaderKey(h)] = idx;
+  });
+
+  var missing = [];
+  ABSENCE_HEADERS.forEach(function(name) {
+    if (headerMap[normalizeHeaderKey(name)] === undefined) missing.push(name);
+  });
+
+  if (missing.length) {
+    var startCol = lastCol + 1;
+    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
+  }
+
+  return sheet;
+}
+
+function parseAbsenceModalidade(modalidade, hoursText) {
+  var mod = normalizeHeaderKey(modalidade);
+  if (mod === 'dia') return 'Dia';
+  if (mod === 'hora') return 'Hora';
+  return String(hoursText || '').trim() === '' ? 'Dia' : 'Hora';
+}
+
+function parseAbsenceStatus(status) {
+  var st = normalizeHeaderKey(status);
+  if (st === 'cancelado') return 'Cancelado';
+  return 'Ativo';
+}
+
+function readAbsenceRow(row) {
+  var c0 = String(row[0] || '').trim();
+  if (c0.indexOf('@') !== -1) {
+    var legacyHours = String(row[4] || '').trim();
+    return {
+      id: '',
+      email: c0.toLowerCase(),
+      dataInicio: String(row[1] || '').trim(),
+      dataFim: String(row[2] || '').trim(),
+      tipo: String(row[3] || '').trim(),
+      modalidade: parseAbsenceModalidade('', legacyHours),
+      horas: legacyHours,
+      observacao: '',
+      criadoPor: '',
+      status: 'Ativo',
+      sheetRow: null
+    };
+  }
+
+  var hoursText = String(row[6] || '').trim();
+  return {
+    id: c0,
+    email: String(row[1] || '').trim().toLowerCase(),
+    dataInicio: String(row[2] || '').trim(),
+    dataFim: String(row[3] || '').trim(),
+    tipo: String(row[4] || '').trim(),
+    modalidade: parseAbsenceModalidade(row[5], hoursText),
+    horas: hoursText,
+    observacao: String(row[7] || '').trim(),
+    criadoPor: String(row[8] || '').trim().toLowerCase(),
+    status: parseAbsenceStatus(row[9]),
+    sheetRow: null
+  };
+}
+
+function validateAbsencePayload(payload) {
+  if (!payload) return { ok: false, message: 'Dados da ausência não informados.' };
+
+  var email = String(payload.desenvolvedor || '').trim().toLowerCase();
+  if (!email || email.indexOf('@') === -1) {
+    return { ok: false, message: 'Informe o e-mail do colaborador.' };
+  }
+  if (!findSquadMemberByEmail(email)) {
+    return { ok: false, message: 'O colaborador precisa estar em Integrantes_Squad.' };
+  }
+
+  var start = parseSheetDate(payload.dataInicio);
+  var end = parseSheetDate(payload.dataFim);
+  if (!start || !end) {
+    return { ok: false, message: 'Informe Data início e Data fim válidas.' };
+  }
+  if (end.getTime() < start.getTime()) {
+    return { ok: false, message: 'Data fim não pode ser anterior à data início.' };
+  }
+
+  var modalidade = parseAbsenceModalidade(payload.modalidade, payload.horas);
+  var tipo = String(payload.tipo || '').trim();
+  if (!tipo) return { ok: false, message: 'Informe o tipo da ausência.' };
+
+  var hoursText = '';
+  if (modalidade === 'Hora') {
+    var hours = parseFloat(String(payload.horas || '').replace(',', '.'));
+    if (isNaN(hours) || hours <= 0) {
+      return { ok: false, message: 'Para modalidade Hora, informe uma quantidade de horas maior que zero.' };
+    }
+    hoursText = String(hours);
+  }
+
+  return {
+    ok: true,
+    email: email,
+    dataInicio: formatSheetDate(start),
+    dataFim: formatSheetDate(end),
+    tipo: tipo,
+    modalidade: modalidade,
+    horas: hoursText,
+    observacao: String(payload.observacao || '').trim()
+  };
+}
+
+/**
+ * Lista integrantes para o seletor de ausências (gestor).
+ */
+function getSquadMembers() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var members = [];
+    sheetRows(ss, 'Integrantes_Squad').forEach(function(row) {
+      var email = String(row[2] || '').trim().toLowerCase();
+      if (!email) return;
+      members.push({
+        id: String(row[0] || '').trim(),
+        nome: String(row[1] || '').trim(),
+        email: email,
+        papel: String(row[3] || '').trim()
+      });
+    });
+
+    members.sort(function(a, b) {
+      return String(a.nome || a.email).localeCompare(String(b.nome || b.email), 'pt-BR');
+    });
+
+    return JSON.stringify({ success: true, data: members });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: e.toString() });
+  }
+}
+
+/**
+ * Lista ausências ativas.
+ */
+function getAbsences() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    ensureAbsencesSheet(ss);
+    var sheet = ss.getSheetByName('Ausencias_e_Eventos');
+    var data = sheet.getDataRange().getDisplayValues();
+    var nameByEmail = {};
+    sheetRows(ss, 'Integrantes_Squad').forEach(function(row) {
+      var email = String(row[2] || '').trim().toLowerCase();
+      if (email) nameByEmail[email] = String(row[1] || '').trim();
+    });
+
+    var items = [];
+    for (var i = 1; i < data.length; i++) {
+      var item = readAbsenceRow(data[i]);
+      if (!item.email) continue;
+      if (item.status === 'Cancelado') continue;
+      item.nome = nameByEmail[item.email] || item.email;
+      item.sheetRow = i + 1;
+      items.push(item);
+    }
+
+    items.sort(function(a, b) {
+      var da = parseSheetDate(a.dataInicio);
+      var db = parseSheetDate(b.dataInicio);
+      if (da && db) return da.getTime() - db.getTime();
+      return String(a.dataInicio).localeCompare(String(b.dataInicio));
+    });
+
+    return JSON.stringify({ success: true, data: items });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: e.toString() });
+  }
+}
+
+/**
+ * Cria ausência. Colaborador só para si; Tech Manager para qualquer integrante.
+ */
+function saveAbsence(payload) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas membros da squad vd+ Core podem cadastrar ausências.'
+      });
+    }
+
+    var validated = validateAbsencePayload(payload);
+    if (!validated.ok) {
+      return JSON.stringify({ success: false, message: validated.message });
+    }
+
+    if (!canActOnAbsenceTarget(actor, validated.email)) {
+      return JSON.stringify({
+        success: false,
+        message: 'Você só pode cadastrar a própria ausência. Peça ao gestor para registrar de outro colaborador.'
+      });
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var sheet = ensureAbsencesSheet(ss);
+    var idGenerated = nextAbsenceId(sheet);
+
+    sheet.appendRow([
+      idGenerated,
+      validated.email,
+      validated.dataInicio,
+      validated.dataFim,
+      validated.tipo,
+      validated.modalidade,
+      validated.horas,
+      validated.observacao,
+      actor.email,
+      'Ativo'
+    ]);
+
+    return JSON.stringify({
+      success: true,
+      message: 'Ausência cadastrada com sucesso!',
+      id: idGenerated
+    });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao salvar: ' + e.toString() });
+  }
+}
+
+/**
+ * Atualiza ausência ativa. Mesmas regras de alvo do cadastro.
+ */
+function updateAbsence(payload) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas membros da squad vd+ Core podem alterar ausências.'
+      });
+    }
+
+    if (!payload || !payload.id) {
+      return JSON.stringify({ success: false, message: 'ID da ausência não informado.' });
+    }
+
+    var validated = validateAbsencePayload(payload);
+    if (!validated.ok) {
+      return JSON.stringify({ success: false, message: validated.message });
+    }
+
+    if (!canActOnAbsenceTarget(actor, validated.email)) {
+      return JSON.stringify({
+        success: false,
+        message: 'Você só pode editar a própria ausência.'
+      });
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var sheet = ensureAbsencesSheet(ss);
+    var data = sheet.getDataRange().getDisplayValues();
+    var rowIndex = -1;
+    var current = null;
+
+    for (var i = 1; i < data.length; i++) {
+      var item = readAbsenceRow(data[i]);
+      if (String(item.id).trim() === String(payload.id).trim()) {
+        rowIndex = i + 1;
+        current = item;
+        break;
+      }
+    }
+
+    if (rowIndex === -1 || !current) {
+      return JSON.stringify({ success: false, message: 'Ausência ' + payload.id + ' não encontrada.' });
+    }
+
+    if (current.status === 'Cancelado') {
+      return JSON.stringify({ success: false, message: 'Ausência cancelada não pode ser editada.' });
+    }
+
+    if (!canActOnAbsenceTarget(actor, current.email)) {
+      return JSON.stringify({
+        success: false,
+        message: 'Você só pode editar a própria ausência.'
+      });
+    }
+
+    if (!actor.isManager && validated.email !== actor.email) {
+      return JSON.stringify({
+        success: false,
+        message: 'Você não pode transferir a ausência para outro colaborador.'
+      });
+    }
+
+    sheet.getRange(rowIndex, 1, 1, ABSENCE_HEADERS.length).setValues([[
+      current.id,
+      validated.email,
+      validated.dataInicio,
+      validated.dataFim,
+      validated.tipo,
+      validated.modalidade,
+      validated.horas,
+      validated.observacao,
+      current.criadoPor || actor.email,
+      'Ativo'
+    ]]);
+
+    return JSON.stringify({
+      success: true,
+      message: 'Ausência ' + current.id + ' atualizada com sucesso!'
+    });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao atualizar: ' + e.toString() });
+  }
+}
+
+/**
+ * Exclusão lógica de ausência.
+ */
+function cancelAbsence(id) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas membros da squad vd+ Core podem cancelar ausências.'
+      });
+    }
+
+    if (!id) return JSON.stringify({ success: false, message: 'ID da ausência não informado.' });
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var sheet = ensureAbsencesSheet(ss);
+    var data = sheet.getDataRange().getDisplayValues();
+    var rowIndex = -1;
+    var current = null;
+
+    for (var i = 1; i < data.length; i++) {
+      var item = readAbsenceRow(data[i]);
+      if (String(item.id).trim() === String(id).trim()) {
+        rowIndex = i + 1;
+        current = item;
+        break;
+      }
+    }
+
+    if (rowIndex === -1 || !current) {
+      return JSON.stringify({ success: false, message: 'Ausência ' + id + ' não encontrada.' });
+    }
+
+    if (!canActOnAbsenceTarget(actor, current.email)) {
+      return JSON.stringify({
+        success: false,
+        message: 'Você só pode cancelar a própria ausência.'
+      });
+    }
+
+    sheet.getRange(rowIndex, 10).setValue('Cancelado');
+
+    return JSON.stringify({
+      success: true,
+      message: 'Ausência ' + id + ' cancelada com sucesso!'
+    });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao cancelar: ' + e.toString() });
+  }
 }
 
 function findVesperaHolidayName(dateObj, feriados) {
@@ -865,14 +1385,22 @@ function getCapacity(payload) {
 
     var absences = [];
     sheetRows(ss, 'Ausencias_e_Eventos').forEach(function(row) {
-      var from = parseSheetDate(row[1]);
-      var to = parseSheetDate(row[2]);
-      var email = String(row[0] || '').trim().toLowerCase();
-      if (!email || !from || !to) return;
-      var hoursText = String(row[4] || '').trim();
-      var hours = hoursText === '' ? null : parseFloat(hoursText.replace(',', '.'));
-      if (hours !== null && (isNaN(hours) || hours < 0)) hours = null;
-      absences.push({ email: email, start: from.getTime(), end: to.getTime(), hours: hours });
+      var item = readAbsenceRow(row);
+      if (!item.email || item.status === 'Cancelado') return;
+      var from = parseSheetDate(item.dataInicio);
+      var to = parseSheetDate(item.dataFim);
+      if (!from || !to) return;
+      var hours = null;
+      if (item.modalidade === 'Hora') {
+        hours = parseFloat(String(item.horas || '').replace(',', '.'));
+        if (isNaN(hours) || hours < 0) hours = null;
+      }
+      absences.push({
+        email: item.email,
+        start: from.getTime(),
+        end: to.getTime(),
+        hours: hours
+      });
     });
 
     var shifts = [];
@@ -1079,14 +1607,25 @@ function businessmapGet(config, path, query) {
     parsed = {};
   }
   if (code < 200 || code >= 300) {
-    var detail = parsed.error && parsed.error.message
-      ? parsed.error.message
-      : 'resposta sem detalhe';
+    var detail = businessmapErrorDetail(parsed);
     var failure = new Error('HTTP ' + code + ' em ' + path + ': ' + detail);
     failure.code = code;
     throw failure;
   }
   return parsed;
+}
+
+function businessmapErrorDetail(parsed) {
+  if (!parsed || !parsed.error) return 'resposta sem detalhe';
+  var message = parsed.error.message || 'resposta sem detalhe';
+  var details = parsed.error.details;
+  if (!details || typeof details !== 'object') return message;
+  var parts = [];
+  Object.keys(details).forEach(function(key) {
+    var value = details[key];
+    parts.push(key + ': ' + (Array.isArray(value) ? value.join(' ') : String(value)));
+  });
+  return parts.length ? message + ' ' + parts.join('; ') : message;
 }
 
 function businessmapRows(payload) {
@@ -1288,6 +1827,285 @@ function getThroughputForecast(payload) {
     });
   } catch (e) {
     Logger.log('[Throughput] ' + e.toString());
+    return JSON.stringify({ success: false, message: e.message || e.toString() });
+  }
+}
+
+function releaseNoteRules() {
+  return {
+    releaseBoardId: 879,
+    releaseWorkflowId: 8641,
+    squadBoardId: 335,
+    excludedTypes: { ticket: true },
+    excludedTypeIds: { '37': true },
+    pageCap: 8
+  };
+}
+
+function releaseMatchKey(text) {
+  var value = normalizePlace(text).replace(/\s+/g, '');
+  var match = value.match(/^release\d+(?:\.\d+)*/);
+  return match ? match[0] : '';
+}
+
+function releaseDisplayName(releaseName) {
+  return String(releaseName || '').trim().replace(/^release\s+/i, '');
+}
+
+function releaseDisplayDate(value) {
+  var date = parseSheetDate(value);
+  return date ? formatSheetDate(date) : String(value || '');
+}
+
+function releaseNoteCategories() {
+  return [
+    { nome: 'Novidades', icone: '🚀', chaves: ['epic', 'feature', 'novidade', 'nova funcionalidade'] },
+    { nome: 'Melhorias', icone: '✨', chaves: ['improvement', 'melhoria', 'ux'] },
+    { nome: 'Correções', icone: '🐛', chaves: ['bug', 'defect', 'correcao'] },
+    { nome: 'Infraestrutura', icone: '⚙️', chaves: ['tech debt', 'debito tecnico', 'infra', 'refactor', 'infraestrutura'] },
+    { nome: 'Outros', icone: '', chaves: [] }
+  ];
+}
+
+function findReleaseCard(config, releaseName) {
+  var wanted = releaseMatchKey(releaseName);
+  if (!wanted) {
+    throw new Error('O nome da release na planilha não pôde ser comparado.');
+  }
+  var rules = releaseNoteRules();
+  var states = ['active', 'archived'];
+  var stateIndex;
+  for (stateIndex = 0; stateIndex < states.length; stateIndex++) {
+    var page = 1;
+    var allPages = 1;
+    while (page <= allPages && page <= rules.pageCap) {
+      var payload = businessmapGet(config, '/cards', [
+        'board_ids=' + rules.releaseBoardId,
+        'state=' + states[stateIndex],
+        'per_page=1000',
+        'page=' + page,
+        'fields=' + encodeURIComponent('card_id,title,workflow_id')
+      ].join('&'));
+      var block = payload.data || {};
+      allPages = block.pagination && block.pagination.all_pages ? block.pagination.all_pages : 1;
+      var cards = businessmapRows(payload);
+      var i;
+      for (i = 0; i < cards.length; i++) {
+        if (releaseMatchKey(cards[i].title) !== wanted) continue;
+        if (cards[i].workflow_id && String(cards[i].workflow_id) !== String(rules.releaseWorkflowId)) continue;
+        return cards[i];
+      }
+      page++;
+    }
+  }
+  throw new Error('Não encontrei o card da ' + releaseName + ' em Programação de Releases.');
+}
+
+function relativeCardIds(config, releaseCard) {
+  var ids = [];
+  var releaseId = String(releaseCard.card_id);
+
+  function collect(rows, onlyRelative) {
+    rows.forEach(function(row) {
+      if (onlyRelative && String(row.link_type || '').toLowerCase().indexOf('relative') !== 0) return;
+      var id = row.card_id || row.linked_card_id || row.id;
+      if (!id || String(id) === releaseId || ids.indexOf(String(id)) !== -1) return;
+      ids.push(String(id));
+    });
+  }
+
+  var detail = businessmapGet(config, '/cards/' + releaseId, '');
+  var card = detail.data || {};
+  if (Array.isArray(card.linked_cards)) {
+    collect(card.linked_cards, true);
+    return ids;
+  }
+  collect(businessmapRows(businessmapGet(config, '/cards/' + releaseId + '/relatives', '')), false);
+  return ids;
+}
+
+function isExcludedReleaseType(typeId, typeName) {
+  var rules = releaseNoteRules();
+  if (typeName) return !!rules.excludedTypes[normalizePlace(typeName)];
+  return !!rules.excludedTypeIds[String(typeId)];
+}
+
+function cardsByIds(config, ids) {
+  var cards = [];
+  var seen = {};
+  var start = 0;
+  while (start < ids.length) {
+    var chunk = ids.slice(start, start + 50);
+    ['active', 'archived'].forEach(function(state) {
+      var payload = businessmapGet(config, '/cards', [
+        'card_ids=' + chunk.join(','),
+        'state=' + state,
+        'per_page=1000',
+        'fields=' + encodeURIComponent('card_id,title,type_id,board_id,column_id,last_column_id')
+      ].join('&'));
+      businessmapRows(payload).forEach(function(card) {
+        var key = String(card.card_id);
+        if (seen[key]) return;
+        seen[key] = true;
+        cards.push(card);
+      });
+    });
+    start += 50;
+  }
+  return cards;
+}
+
+function boardTypeNameMap(config) {
+  var map = {};
+  var paths = ['/boards/335/cardTypes', '/cardTypes'];
+  var i;
+  for (i = 0; i < paths.length; i++) {
+    try {
+      businessmapRows(businessmapGet(config, paths[i], '')).forEach(function(row) {
+        if (!row.type_id) return;
+        map[String(row.type_id)] = String(row.name || row.type_name || '');
+      });
+      if (Object.keys(map).length) return map;
+    } catch (e) {
+      if (e.code !== 404) throw e;
+    }
+  }
+  return map;
+}
+
+function tagLabelMap(config) {
+  var map = {};
+  try {
+    businessmapRows(businessmapGet(config, '/tags', '')).forEach(function(row) {
+      var id = row.tag_id || row.id;
+      var label = row.label || row.name || row.title;
+      if (id && label) map[String(id)] = String(label);
+    });
+  } catch (e) {
+    Logger.log('[ReleaseNotes] tags ' + (e.message || e.toString()));
+  }
+  return map;
+}
+
+function cardTagNames(card, tagNames) {
+  var names = [];
+  var tags = card.tags || [];
+  if (Array.isArray(tags)) {
+    tags.forEach(function(tag) {
+      var label = typeof tag === 'string' ? tag : (tag && (tag.name || tag.label || tag.title));
+      if (label) names.push(String(label));
+    });
+  }
+  var ids = card.tag_ids || [];
+  if (Array.isArray(ids)) {
+    ids.forEach(function(id) {
+      var label = tagNames && tagNames[String(id)];
+      if (label && names.indexOf(label) === -1) names.push(label);
+    });
+  }
+  return names;
+}
+
+function releaseNoteCategory(tags, typeName) {
+  var categories = releaseNoteCategories();
+  var sources = tags.concat(typeName ? [typeName] : []);
+  var sourceIndex;
+  for (sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
+    var key = normalizePlace(sources[sourceIndex]);
+    var categoryIndex;
+    for (categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
+      var keys = categories[categoryIndex].chaves;
+      var keyIndex;
+      for (keyIndex = 0; keyIndex < keys.length; keyIndex++) {
+        if (key === normalizePlace(keys[keyIndex])) return categories[categoryIndex].nome;
+      }
+    }
+  }
+  return 'Outros';
+}
+
+function buildReleaseNotesText(releaseName, deployDate, grouped) {
+  var lines = ['📦 Release ' + releaseDisplayName(releaseName) + (deployDate ? ' - ' + releaseDisplayDate(deployDate) : '')];
+  releaseNoteCategories().forEach(function(category) {
+    var items = grouped[category.nome] || [];
+    if (!items.length) return;
+    lines.push((category.icone ? category.icone + ' ' : '') + category.nome);
+    items.forEach(function(title) { lines.push(title); });
+  });
+  return lines.join('\n');
+}
+
+/**
+ * Gera o texto de release notes de uma linha de Planejamento_Deploys.
+ * payload: { id: 'REL-001' }
+ */
+function getReleaseNotes(payload) {
+  try {
+    var deployId = String(payload && payload.id || '').trim();
+    if (!deployId) {
+      return JSON.stringify({ success: false, message: 'Selecione uma release.' });
+    }
+    var listed = JSON.parse(getDeploysScheduled());
+    if (!listed.success) return JSON.stringify(listed);
+    var deploy = null;
+    (listed.data || []).forEach(function(item) {
+      if (item.id === deployId) deploy = item;
+    });
+    if (!deploy) {
+      return JSON.stringify({ success: false, message: 'A release não está na planilha.' });
+    }
+
+    var config = businessmapConfig();
+    if (!config) {
+      return JSON.stringify({ success: false, message: 'Configure BUSINESSMAP_BASE_URL e BUSINESSMAP_API_KEY nas Script Properties.' });
+    }
+
+    var releaseCard = findReleaseCard(config, deploy.releaseTribo);
+    var ids = relativeCardIds(config, releaseCard);
+    var typeNames = boardTypeNameMap(config);
+    var tagNames = tagLabelMap(config);
+    var grouped = {};
+    releaseNoteCategories().forEach(function(category) { grouped[category.nome] = []; });
+    var squadBoard = String(releaseNoteRules().squadBoardId);
+    var total = 0;
+
+    cardsByIds(config, ids).forEach(function(card) {
+      if (String(card.board_id) !== squadBoard) return;
+      if (isCancelledThroughputCard(card)) return;
+      var typeName = typeNames[String(card.type_id)];
+      if (isExcludedReleaseType(card.type_id, typeName)) return;
+      var title = String(card.title || '').trim();
+      if (!title) return;
+      if (!card.tag_ids) {
+        try {
+          var detail = businessmapGet(config, '/cards/' + card.card_id, '');
+          card.tag_ids = (detail.data && detail.data.tag_ids) || [];
+        } catch (e) {
+          Logger.log('[ReleaseNotes] card ' + card.card_id + ' ' + (e.message || e.toString()));
+          card.tag_ids = [];
+        }
+      }
+      var category = releaseNoteCategory(cardTagNames(card, tagNames), typeName);
+      grouped[category].push(title);
+      total++;
+    });
+
+    Object.keys(grouped).forEach(function(name) {
+      grouped[name].sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+    });
+
+    return JSON.stringify({
+      success: true,
+      id: deploy.id,
+      release: deploy.releaseTribo,
+      dataDeploy: deploy.dataDeploy,
+      instancia: deploy.instancia,
+      total: total,
+      aviso: total ? '' : 'Nenhum card do VD Plataforma Core, fora Ticket e cancelado, está ligado a esta release.',
+      texto: buildReleaseNotesText(deploy.releaseTribo, deploy.dataDeploy, grouped)
+    });
+  } catch (e) {
+    Logger.log('[ReleaseNotes] ' + e.toString());
     return JSON.stringify({ success: false, message: e.message || e.toString() });
   }
 }

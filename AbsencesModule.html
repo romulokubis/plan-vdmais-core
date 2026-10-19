@@ -1,0 +1,510 @@
+<div id="AbsencesModuleContainer" class="flex flex-col gap-6 w-full">
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ausências</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Férias, licenças e ausências parciais da squad vd+ Core</p>
+    </div>
+
+    <button id="btnCreateAbsence" onclick="AbsencesModule.openCreate()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
+      <span>+</span> Cadastrar ausência
+    </button>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <th class="py-3 px-3">ID</th>
+            <th class="py-3 px-3">Colaborador</th>
+            <th class="py-3 px-3">Período</th>
+            <th class="py-3 px-3">Tipo</th>
+            <th class="py-3 px-3 text-center">Modalidade</th>
+            <th class="py-3 px-3 text-center">Horas</th>
+            <th class="py-3 px-3">Observação</th>
+            <th class="py-3 px-3 text-right">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="absencesTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          <tr>
+            <td colspan="8" class="py-6 text-center text-xs text-slate-400">Carregando ausências...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="absenceModalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-xl shadow-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🏖️</span>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white" id="absenceModalTitle">Cadastrar ausência</h3>
+      </div>
+      <button type="button" onclick="AbsencesModule.closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold focus:outline-none cursor-pointer">&times;</button>
+    </div>
+
+    <form id="absenceForm" onsubmit="AbsencesModule.handleSubmit(event)" class="p-6 space-y-4">
+      <input type="hidden" id="absenceInputId" value="" />
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Colaborador *</label>
+        <select id="absenceInputDev" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer"></select>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Data início *</label>
+          <input type="date" id="absenceInputInicio" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Data fim *</label>
+          <input type="date" id="absenceInputFim" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Tipo *</label>
+          <select id="absenceInputTipo" required onchange="AbsencesModule.onTipoChange()" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="Ferias">Férias</option>
+            <option value="Licenca">Licença</option>
+            <option value="Treinamento">Treinamento</option>
+            <option value="Consulta medica">Consulta médica</option>
+            <option value="Compensacao de horas">Compensação de horas</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Modalidade *</label>
+          <select id="absenceInputModalidade" required onchange="AbsencesModule.onModalidadeChange()" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="Dia">Dia (período integral)</option>
+            <option value="Hora">Hora (parcial)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="absenceHorasContainer" class="hidden">
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Horas *</label>
+        <input type="number" id="absenceInputHoras" min="0.5" step="0.5" placeholder="Ex: 2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        <p class="text-[10px] text-slate-400 mt-1">Desconta essas horas no cruzamento com o período da capacidade.</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Observação</label>
+        <textarea id="absenceInputObs" rows="2" placeholder="Detalhes opcionais..." class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none"></textarea>
+      </div>
+
+      <div id="absenceModalFeedback" class="hidden text-xs py-2 px-3 rounded-lg"></div>
+
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+        <button type="button" onclick="AbsencesModule.closeModal()" class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer">Fechar</button>
+        <button type="submit" id="btnSubmitAbsence" class="px-5 py-2 text-xs font-bold text-white bg-[#008775] hover:bg-[#006e5f] rounded-lg shadow transition-all cursor-pointer">
+          Salvar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.AbsencesModule = (function() {
+  var state = {
+    absences: [],
+    members: [],
+    canEdit: false,
+    isManager: false,
+    email: '',
+    editingId: null
+  };
+
+  var DAY_TYPES = { Ferias: true, Licenca: true, Treinamento: true };
+  var HOUR_TYPES = { 'Consulta medica': true, 'Compensacao de horas': true };
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function sheetToInputDate(value) {
+    if (!value) return '';
+    var str = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    var parts = str.split('/');
+    if (parts.length !== 3) return '';
+    var d = parts[0].length === 1 ? '0' + parts[0] : parts[0];
+    var m = parts[1].length === 1 ? '0' + parts[1] : parts[1];
+    return parts[2] + '-' + m + '-' + d;
+  }
+
+  function canManageTarget(email) {
+    var target = String(email || '').trim().toLowerCase();
+    if (!state.canEdit || !target) return false;
+    if (state.isManager) return true;
+    return String(state.email || '').trim().toLowerCase() === target;
+  }
+
+  function applyPermissionsUI() {
+    var btn = document.getElementById('btnCreateAbsence');
+    if (!btn) return;
+    if (state.canEdit) btn.classList.remove('hidden');
+    else btn.classList.add('hidden');
+  }
+
+  function syncDevSelect(selectedEmail) {
+    var select = document.getElementById('absenceInputDev');
+    if (!select) return;
+
+    var html = '';
+    if (state.isManager) {
+      state.members.forEach(function(m) {
+        var selected = selectedEmail && m.email === selectedEmail ? ' selected' : '';
+        html += '<option value="' + escapeHtml(m.email) + '"' + selected + '>' +
+          escapeHtml(m.nome || m.email) + ' (' + escapeHtml(m.email) + ')</option>';
+      });
+      select.disabled = false;
+      select.classList.remove('bg-slate-100', 'dark:bg-slate-900/50', 'cursor-not-allowed');
+    } else {
+      var selfEmail = String(state.email || '').trim().toLowerCase();
+      var selfName = selfEmail;
+      state.members.forEach(function(m) {
+        if (m.email === selfEmail) selfName = m.nome || m.email;
+      });
+      html = '<option value="' + escapeHtml(selfEmail) + '" selected>' +
+        escapeHtml(selfName) + ' (' + escapeHtml(selfEmail) + ')</option>';
+      select.disabled = true;
+      select.classList.add('bg-slate-100', 'dark:bg-slate-900/50', 'cursor-not-allowed');
+    }
+    select.innerHTML = html;
+  }
+
+  function onTipoChange() {
+    var tipo = document.getElementById('absenceInputTipo').value;
+    var modalidade = document.getElementById('absenceInputModalidade');
+    if (!modalidade || state.editingId) return;
+    if (HOUR_TYPES[tipo]) modalidade.value = 'Hora';
+    else if (DAY_TYPES[tipo]) modalidade.value = 'Dia';
+    onModalidadeChange();
+  }
+
+  function onModalidadeChange() {
+    var modalidade = document.getElementById('absenceInputModalidade').value;
+    var container = document.getElementById('absenceHorasContainer');
+    var input = document.getElementById('absenceInputHoras');
+    if (!container || !input) return;
+    if (modalidade === 'Hora') {
+      container.classList.remove('hidden');
+      input.required = true;
+    } else {
+      container.classList.add('hidden');
+      input.required = false;
+      input.value = '';
+    }
+  }
+
+  function showFeedback(message, isError) {
+    var el = document.getElementById('absenceModalFeedback');
+    if (!el) return;
+    el.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-emerald-50', 'text-emerald-700');
+    el.classList.add(isError ? 'bg-red-50' : 'bg-emerald-50', isError ? 'text-red-700' : 'text-emerald-700');
+    el.textContent = message;
+  }
+
+  function closeModal() {
+    var backdrop = document.getElementById('absenceModalBackdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+    state.editingId = null;
+  }
+
+  function openCreate() {
+    if (!state.canEdit) return;
+    state.editingId = null;
+    document.getElementById('absenceModalTitle').textContent = 'Cadastrar ausência';
+    document.getElementById('absenceInputId').value = '';
+    document.getElementById('absenceInputInicio').value = '';
+    document.getElementById('absenceInputFim').value = '';
+    document.getElementById('absenceInputTipo').value = 'Ferias';
+    document.getElementById('absenceInputModalidade').value = 'Dia';
+    document.getElementById('absenceInputHoras').value = '';
+    document.getElementById('absenceInputObs').value = '';
+    document.getElementById('absenceModalFeedback').classList.add('hidden');
+    syncDevSelect(state.email);
+    onModalidadeChange();
+    document.getElementById('absenceModalBackdrop').classList.remove('hidden');
+  }
+
+  function openEdit(id) {
+    var found = state.absences.find(function(item) { return item.id === id; });
+    if (!found || !canManageTarget(found.email)) return;
+
+    state.editingId = id;
+    document.getElementById('absenceModalTitle').textContent = 'Editar ausência ' + id;
+    document.getElementById('absenceInputId').value = id;
+    document.getElementById('absenceInputInicio').value = sheetToInputDate(found.dataInicio);
+    document.getElementById('absenceInputFim').value = sheetToInputDate(found.dataFim);
+    var tipoSelect = document.getElementById('absenceInputTipo');
+    var tipoValue = found.tipo || 'Outro';
+    tipoSelect.value = tipoValue;
+    if (tipoSelect.value !== tipoValue) {
+      var opt = document.createElement('option');
+      opt.value = tipoValue;
+      opt.textContent = tipoValue;
+      tipoSelect.appendChild(opt);
+      tipoSelect.value = tipoValue;
+    }
+    document.getElementById('absenceInputModalidade').value = found.modalidade === 'Hora' ? 'Hora' : 'Dia';
+    document.getElementById('absenceInputHoras').value = found.horas || '';
+    document.getElementById('absenceInputObs').value = found.observacao || '';
+    document.getElementById('absenceModalFeedback').classList.add('hidden');
+    syncDevSelect(found.email);
+    onModalidadeChange();
+    document.getElementById('absenceModalBackdrop').classList.remove('hidden');
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!state.canEdit) return;
+
+    var payload = {
+      id: document.getElementById('absenceInputId').value || '',
+      desenvolvedor: document.getElementById('absenceInputDev').value,
+      dataInicio: document.getElementById('absenceInputInicio').value,
+      dataFim: document.getElementById('absenceInputFim').value,
+      tipo: document.getElementById('absenceInputTipo').value,
+      modalidade: document.getElementById('absenceInputModalidade').value,
+      horas: document.getElementById('absenceInputHoras').value,
+      observacao: document.getElementById('absenceInputObs').value
+    };
+
+    var btn = document.getElementById('btnSubmitAbsence');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      showFeedback('Ambiente local: alteração não persistida.', true);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Salvar';
+      }
+      return;
+    }
+
+    var runner = google.script.run
+      .withSuccessHandler(function(responseStr) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Salvar';
+        }
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            closeModal();
+            window.dispatchEvent(new CustomEvent('vdCore:absenceChanged'));
+          } else {
+            showFeedback(resp.message || 'Não foi possível salvar.', true);
+          }
+        } catch (e) {
+          showFeedback('Erro ao processar resposta do servidor.', true);
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Salvar';
+        }
+        showFeedback('Falha no servidor: ' + err.message, true);
+      });
+
+    if (payload.id) runner.updateAbsence(payload);
+    else runner.saveAbsence(payload);
+  }
+
+  function cancelAbsence(id) {
+    var found = state.absences.find(function(item) { return item.id === id; });
+    if (!found || !canManageTarget(found.email)) return;
+    if (!confirm('Cancelar a ausência ' + id + '?')) return;
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.absences = state.absences.filter(function(item) { return item.id !== id; });
+      render();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            window.dispatchEvent(new CustomEvent('vdCore:absenceChanged'));
+          } else {
+            alert(resp.message || 'Não foi possível cancelar.');
+          }
+        } catch (e) {
+          alert('Erro ao processar resposta do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        alert('Falha no servidor: ' + err.message);
+      })
+      .cancelAbsence(id);
+  }
+
+  function render() {
+    var tbody = document.getElementById('absencesTableBody');
+    if (!tbody) return;
+
+    if (!state.absences.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-slate-400">Nenhuma ausência ativa cadastrada.</td></tr>';
+      return;
+    }
+
+    var html = '';
+    state.absences.forEach(function(item) {
+      var actions = '';
+      if (canManageTarget(item.email)) {
+        actions =
+          '<button type="button" onclick="AbsencesModule.openEdit(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-[#008775] dark:hover:text-[#2dd4bf] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Editar">✏️</button>' +
+          '<button type="button" onclick="AbsencesModule.cancelAbsence(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Cancelar">🗑️</button>';
+      }
+
+      var modalidadeBadge = item.modalidade === 'Hora'
+        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">Hora</span>'
+        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">Dia</span>';
+
+      html +=
+        '<tr class="hover:bg-slate-50/80 dark:hover:bg-slate-900/30">' +
+          '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + escapeHtml(item.id) + '</td>' +
+          '<td class="py-3 px-3">' +
+            '<div class="font-medium text-slate-900 dark:text-white text-xs">' + escapeHtml(item.nome || item.email) + '</div>' +
+            '<div class="text-[10px] text-slate-400">' + escapeHtml(item.email) + '</div>' +
+          '</td>' +
+          '<td class="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-300">' +
+            escapeHtml(item.dataInicio) + ' → ' + escapeHtml(item.dataFim) +
+          '</td>' +
+          '<td class="py-3 px-3 text-xs text-slate-700 dark:text-slate-200">' + escapeHtml(item.tipo || '-') + '</td>' +
+          '<td class="py-3 px-3 text-center">' + modalidadeBadge + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' +
+            (item.modalidade === 'Hora' ? escapeHtml(item.horas || '-') : '—') +
+          '</td>' +
+          '<td class="py-3 px-3 text-xs text-slate-500 max-w-[180px] truncate" title="' + escapeHtml(item.observacao || '') + '">' +
+            escapeHtml(item.observacao || '—') +
+          '</td>' +
+          '<td class="py-3 px-3 text-right whitespace-nowrap">' + actions + '</td>' +
+        '</tr>';
+    });
+
+    tbody.innerHTML = html;
+  }
+
+  function fetchMembers() {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.members = state.email
+        ? [{ nome: 'Você', email: state.email, papel: state.isManager ? 'Tech Manager' : 'Developer' }]
+        : [];
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) state.members = resp.data || [];
+        } catch (e) {}
+      })
+      .getSquadMembers();
+  }
+
+  function fetchAbsences() {
+    var tbody = document.getElementById('absencesTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-slate-400">Carregando ausências...</td></tr>';
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.absences = [];
+      render();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            state.absences = resp.data || [];
+            render();
+          } else if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">' + escapeHtml(resp.message) + '</td></tr>';
+          }
+        } catch (e) {
+          if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Erro ao processar resposta.</td></tr>';
+          }
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Falha no servidor: ' + escapeHtml(err.message) + '</td></tr>';
+        }
+      })
+      .getAbsences();
+  }
+
+  function syncPermissionsFromShell() {
+    if (window.AppShell) {
+      if (typeof window.AppShell.canEdit === 'function') state.canEdit = window.AppShell.canEdit();
+      if (typeof window.AppShell.getUserEmail === 'function') state.email = window.AppShell.getUserEmail() || '';
+      if (typeof window.AppShell.isManager === 'function') state.isManager = window.AppShell.isManager();
+    }
+    applyPermissionsUI();
+  }
+
+  return {
+    init: function() {
+      syncPermissionsFromShell();
+      fetchMembers();
+      fetchAbsences();
+
+      window.addEventListener('vdCore:permissionsLoaded', function(e) {
+        if (!e || !e.detail) return;
+        state.canEdit = !!e.detail.canEdit;
+        state.isManager = !!e.detail.isManager;
+        state.email = e.detail.email || '';
+        applyPermissionsUI();
+        fetchMembers();
+        render();
+      });
+
+      window.addEventListener('vdCore:absenceChanged', function() {
+        fetchAbsences();
+      });
+    },
+    show: function() {
+      var container = document.getElementById('AbsencesModuleContainer');
+      if (container) container.classList.remove('hidden');
+      syncPermissionsFromShell();
+      fetchMembers();
+      fetchAbsences();
+    },
+    hide: function() {
+      var container = document.getElementById('AbsencesModuleContainer');
+      if (container) container.classList.add('hidden');
+    },
+    openCreate: openCreate,
+    openEdit: openEdit,
+    cancelAbsence: cancelAbsence,
+    closeModal: closeModal,
+    handleSubmit: handleSubmit,
+    onTipoChange: onTipoChange,
+    onModalidadeChange: onModalidadeChange
+  };
+})();
+</script>

@@ -1,21 +1,151 @@
-<div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="text-base font-bold text-slate-900 dark:text-slate-100">Release Notes</h2>
-    <button id="btn-rn-sync" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-xs font-semibold rounded-xl">🔄 Sincronizar</button>
+<div id="ReleaseNotesModuleContainer" class="flex flex-col gap-6 w-full">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white">Release Notes</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Texto gerado pelos cards do VD Plataforma Core ligados à release como relativos, sem Ticket e sem cancelado.</p>
+      </div>
+      <form id="release-notes-form" class="flex flex-col sm:flex-row sm:items-end gap-3">
+        <div>
+          <label for="release-notes-select" class="block text-xs font-semibold text-slate-500 mb-1">Release</label>
+          <select id="release-notes-select" class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white min-w-64"></select>
+        </div>
+        <button type="submit" class="px-4 py-2 text-xs font-bold rounded-lg bg-[#008775] text-white">Gerar</button>
+        <button type="button" id="release-notes-copy" class="px-4 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200">Copiar</button>
+      </form>
+    </div>
   </div>
-  <div id="rn-output" class="bg-slate-900 text-slate-100 p-6 rounded-xl font-mono text-xs shadow-inner">Aguardando...</div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div id="release-notes-message" class="hidden mb-4 text-xs text-red-600 dark:text-red-300"></div>
+    <pre id="release-notes-output" class="bg-slate-900 text-slate-100 p-6 rounded-xl font-mono text-xs whitespace-pre-wrap">Selecione uma release e gere o texto.</pre>
+  </div>
 </div>
+
 <script>
 window.ReleaseNotesModule = (function() {
+  var releases = [];
+
+  function showMessage(message, neutral) {
+    var box = document.getElementById('release-notes-message');
+    box.textContent = message;
+    box.classList.toggle('text-red-600', !neutral);
+    box.classList.toggle('dark:text-red-300', !neutral);
+    box.classList.toggle('text-amber-700', !!neutral);
+    box.classList.toggle('dark:text-amber-300', !!neutral);
+    box.classList.remove('hidden');
+  }
+
+  function displayDate(value) {
+    var match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return match ? match[3] + '/' + match[2] + '/' + match[1] : String(value || '');
+  }
+
+  function renderOptions() {
+    var select = document.getElementById('release-notes-select');
+    if (!releases.length) {
+      select.innerHTML = '<option value="">Nenhuma release disponível</option>';
+      return;
+    }
+    select.innerHTML = releases.map(function(item) {
+      var label = item.releaseTribo;
+      if (item.instancia) label += ' · ' + item.instancia;
+      if (item.dataDeploy) label += ' · ' + displayDate(item.dataDeploy);
+      return '<option value="' + escapeHtml(item.id) + '">' + escapeHtml(label) + '</option>';
+    }).join('');
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function loadReleases() {
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      showMessage('A consulta depende do Apps Script publicado.');
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (!response.success) {
+            showMessage(response.message || 'Não foi possível listar as releases.');
+            return;
+          }
+          releases = response.data || [];
+          renderOptions();
+        } catch (e) {
+          showMessage('Resposta inválida do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showMessage(err && err.message ? err.message : 'Falha no servidor.');
+      })
+      .getDeploysScheduled();
+  }
+
+  function generate() {
+    var box = document.getElementById('release-notes-message');
+    box.classList.add('hidden');
+    var id = document.getElementById('release-notes-select').value;
+    if (!id) {
+      showMessage('Selecione uma release.');
+      return;
+    }
+    document.getElementById('release-notes-output').textContent = 'Gerando o texto...';
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (!response.success) {
+            document.getElementById('release-notes-output').textContent = 'Selecione uma release e gere o texto.';
+            showMessage(response.message || 'Não foi possível gerar o release notes.');
+            return;
+          }
+          document.getElementById('release-notes-output').textContent = response.texto || '';
+          if (response.aviso) showMessage(response.aviso, true);
+        } catch (e) {
+          showMessage('Resposta inválida do servidor.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('release-notes-output').textContent = 'Selecione uma release e gere o texto.';
+        showMessage(err && err.message ? err.message : 'Falha no servidor.');
+      })
+      .getReleaseNotes({ id: id });
+  }
+
+  function copyText() {
+    var text = document.getElementById('release-notes-output').textContent || '';
+    if (!text || text === 'Selecione uma release e gere o texto.' || text === 'Gerando o texto...') return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text);
+      return;
+    }
+    var area = document.createElement('textarea');
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand('copy');
+    document.body.removeChild(area);
+  }
+
   return {
     init: function() {
-      var button = document.getElementById('btn-rn-sync');
-      if (!button) return;
-      button.addEventListener('click', function() {
-        document.getElementById('rn-output').textContent = 'A integração com a Businessmap ainda não está configurada.';
+      document.getElementById('release-notes-form').addEventListener('submit', function(event) {
+        event.preventDefault();
+        generate();
       });
+      document.getElementById('release-notes-copy').addEventListener('click', copyText);
+      loadReleases();
     },
-    show: function() {}
+    show: function() {
+      loadReleases();
+    }
   };
 })();
 </script>

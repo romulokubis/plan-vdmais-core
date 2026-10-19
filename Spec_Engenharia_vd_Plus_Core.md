@@ -7,6 +7,7 @@ Aplicação web em Google Apps Script, vinculada à planilha **Plan Engenharia -
 3. **Calendário de deploy.** Releases por instância (Portugal e Colômbia), com bloqueio de datas proibidas.
 4. **Feriados e recesso.** Feriados da planilha e pontes calculadas, com indicação de quais bloqueiam deploy.
 5. **Release notes.** Texto categorizado a partir dos cards da release.
+6. **Ausências.** Cadastro de férias, licenças e ausências parciais em horas, com impacto na capacidade.
 
 Fuso horário: `America/Sao_Paulo`. A semana começa na segunda-feira. Datas são exibidas como `DD/MM/AAAA`. Na leitura das abas, o backend aceita `DD/MM/AAAA`, `D/M/AAAA` e `AAAA-MM-DD`.
 
@@ -67,6 +68,7 @@ Regras:
 | `DeployModal.html` | Formulário de criar e editar deploy |
 | `HolidaysModule.html` | Feriados, pontes e recesso por ano |
 | `ReleaseNotesModule.html` | Release notes |
+| `AbsencesModule.html` | Lista e formulário de ausências (`window.AbsencesModule`) |
 
 ## Abas e navegação
 
@@ -77,6 +79,7 @@ Regras:
 | 📅 Calendário de Deploy | `view-calendar` | `CalendarModule` |
 | 🌴 Feriados & Recesso | `view-holidays` | `HolidaysModule` |
 | 📦 Release Notes | `view-releasenotes` | `ReleaseNotesModule` |
+| 🏖️ Ausências | `view-absences` | `AbsencesModule` |
 
 A aba inicial é **Calendário de Deploy**. Trocar de aba esconde os outros containers e chama `show()` do módulo da aba, quando existir.
 
@@ -85,6 +88,18 @@ A aba inicial é **Calendário de Deploy**. Trocar de aba esconde os outros cont
 Pode editar quem tem o e-mail da sessão (`Session.getActiveUser().getEmail()`) na coluna `Email` da aba `Integrantes_Squad`. A comparação ignora maiúsculas e espaços.
 
 Quem não está na aba só consulta. Botões de criar, editar e cancelar ficam ocultos. O backend repete a verificação em toda função que grava.
+
+`getUserPermissions` devolve `{ email, canEdit, isManager, papel }`. `isManager` é verdadeiro quando `Papel` é `Tech Manager`.
+
+### Ausências
+
+Só integrante da squad cria, edita ou cancela. Regras de alvo:
+
+- O próprio colaborador cadastra, edita e cancela **somente a própria** ausência.
+- O gestor (`Papel = Tech Manager`) cadastra, edita e cancela ausência de **qualquer** integrante.
+- Colega sem papel de gestor **não** cadastra ausência de outro colega.
+
+A lista de ausências ativas é visível a qualquer usuário autenticado da aplicação. Botões de ação só aparecem para quem pode gravar no alvo.
 
 ## Dados
 
@@ -154,15 +169,33 @@ A carga muda quando o time muda os ritos. O cálculo lê a aba no momento da con
 
 ### `Ausencias_e_Eventos`
 
-`Tipo` é texto livre. Os usos previstos são `Ferias`, `Licenca`, `Treinamento`, `Consulta medica` e `Compensacao de horas`. Outro texto também vale.
-
 | Coluna | Conteúdo |
 | --- | --- |
-| Desenvolvedor | E-mail |
+| ID | `AUS-001`, `AUS-002`, ... |
+| Desenvolvedor | E-mail do ausente |
 | Data_Inicio | Início |
 | Data_Fim | Fim, inclusive |
-| Tipo | Motivo |
-| Horas | Opcional. Vazio desconta os dias úteis inteiros do intervalo |
+| Tipo | `Ferias`, `Licenca`, `Treinamento`, `Consulta medica`, `Compensacao de horas` ou outro texto |
+| Modalidade | `Dia` ou `Hora` |
+| Horas | Obrigatória quando `Modalidade = Hora`. Vazia quando `Modalidade = Dia` |
+| Observacao | Texto livre |
+| Criado_Por | E-mail de quem cadastrou |
+| Status | `Ativo` ou `Cancelado` |
+
+Criar:
+
+- O ID é o maior número de `ID` existente mais um, no formato `AUS-000`.
+- `Criado_Por` é o e-mail da sessão.
+- `Status` nasce `Ativo`.
+- `Data_Fim` não pode ser anterior a `Data_Inicio`.
+- Com `Modalidade = Dia`, `Horas` fica vazia.
+- Com `Modalidade = Hora`, `Horas` deve ser um número maior que zero.
+
+Editar: o dono ou o gestor altera período, tipo, modalidade, horas e observação. `Criado_Por` e `ID` permanecem.
+
+Cancelar é exclusão lógica: `Status` vira `Cancelado`. Ausências canceladas não entram na capacidade nem na lista padrão da tela.
+
+Compatibilidade: linha legada sem `ID`/`Modalidade`/`Status` ainda é lida. Sem `Modalidade`, vazio em `Horas` vale como `Dia` e valor preenchido vale como `Hora`. Sem `Status`, vale `Ativo`. Na primeira gravação, o backend migra a aba legada para o schema novo.
 
 ## Feriados e pontes
 
@@ -234,7 +267,7 @@ Para cada pessoa, no período filtrado:
 
 1. Os dias candidatos são segunda a sexta.
 2. Sai o feriado que se aplica à pessoa e a ponte de feriado nacional ou recesso.
-3. Sai a ausência. Sem `Horas`, cada dia útil do intervalo sai por inteiro. Com `Horas`, desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias.
+3. Sai a ausência com `Status` ativo (ou sem status, na linha legada). `Modalidade = Dia` (ou `Horas` vazio na linha legada): cada dia útil do intervalo sai por inteiro. `Modalidade = Hora` (ou `Horas` preenchido na linha legada): desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias. Ausência `Cancelado` não entra.
 4. Dia que sobrou e cai num turno de sustentação dessa pessoa vale zero para entrega. O turno tira 100% do dia.
 5. `Horas_base` é a soma das horas dos dias que ainda restam.
 6. `H_rituais` é a soma de `Horas_Semana` obrigatórias, vezes os dias de entrega da pessoa, dividido por 5.
@@ -260,7 +293,7 @@ O mesmo botão **Consultar** chama `getThroughputForecast`. As horas e os cards 
 
 O histórico não segue o filtro. São os seis meses civis já encerrados antes do mês corrente, no fuso `America/Sao_Paulo`, no board `335`. Entra o card ativo ou arquivado cuja `first_end_time` cai nesse intervalo: a primeira vez que foi para Done ou Ready to archive. Entram somente os tipos Story e Technical Story. Os ids saem pelo nome em `/boards/335/cardTypes` e, se ali não aparecerem os dois, em `/cardTypes`. Se nenhum dos dois caminhos trouxer esses nomes, valem os ids já vistos neste board: Story `1` e Technical Story `12`. Também fica de fora o card cuja coluna atual ou última coluna é uma destas: `80228` (⛔ Cancelado), `124129` (Cancelado), `139956` (Cancelled). Mês sem card entra nas simulações com zero. O histórico fica em cache por 6 horas.
 
-O período filtrado só define o horizonte: a quantidade de meses civis que o intervalo toca. Cada mês do horizonte sorteia, com reposição, um dos seis meses do histórico. São 10.000 simulações. A tela mostra o cenário conservador (percentil 15), a mediana e o cenário otimista (percentil 85). O gráfico principal agrupa o histórico em blocos do mesmo tamanho do horizonte e coloca ao lado a faixa projetada do período filtrado, com um marcador na mediana. O gráfico mensal permanece abaixo, como histórico usado nas simulações, e não representa a projeção. A descrição na tela é: `VD Plataforma Core · De {início} a {fim}. Cada mês entra nas simulações com o mesmo peso. Resultado de 10.000 simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)`.
+O período filtrado só define o horizonte: a quantidade de meses civis que o intervalo toca. Cada mês do horizonte sorteia, com reposição, um dos seis meses do histórico. São 10.000 simulações. A tela mostra o cenário conservador (percentil 15), a mediana e o cenário otimista (percentil 85). O gráfico principal agrupa o histórico em blocos do mesmo tamanho do horizonte e coloca ao lado a faixa projetada do período filtrado, com um marcador na mediana. O gráfico mensal permanece abaixo, como histórico usado nas simulações, somente quando o horizonte tem mais de um mês. A descrição na tela é: `VD Plataforma Core · De {início} a {fim}. Cada mês entra nas simulações com o mesmo peso. Resultado de 10.000 simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)`.
 
 Se o filtro não começa no dia 1 e termina no último dia do mês final, a tela avisa que a previsão usa meses cheios e as horas usam os dias escolhidos. A resposta não traz título, dono nem lista de cards.
 
@@ -271,6 +304,8 @@ Credenciais só em Script Properties: `BUSINESSMAP_BASE_URL` e `BUSINESSMAP_API_
 O board da squad é **VD Plataforma Core**, id `335`, no workspace VS Internacional - Times. Release notes e throughput leem esse board.
 
 A categoria de cada card sai da primeira tag que casar com a tabela. Sem tag compatível, vale o nome do tipo do card. Comparação sem diferenciar maiúsculas e sem acento.
+
+O card da release fica no board `879` (Internacional VD - Nível 3 - Iniciativas), workflow `8641` (Programação de Releases). Os cards da squad se ligam a ele como item relativo, na seção Relativos e Dependências. Outras squads ligam seus cards como filhos, e esses filhos não entram. A tela escolhe uma linha de `Planejamento_Deploys` que não esteja cancelada. O backend procura nesse workflow, entre cards ativos e arquivados, o card cujo título começa com `Release_Tribo_VD`. A comparação ignora maiúsculas, acentos e espaços, então `Release 5.18` casa com `Release 5. 18 (29/09 a 12/10)`. Entram só os relativos que estão no board `335`. Cards do tipo Ticket ficam de fora. Também fica de fora o card cuja coluna atual ou última coluna é uma destas: `80228` (⛔ Cancelado), `124129` (Cancelado), `139956` (Cancelled). Se nenhum card sobrar, a tela mostra só o cabeçalho e avisa que a release não tem cards da squad. Seção sem cards não aparece. Cada card entra como uma linha com o título.
 
 | Categoria | Tag ou tipo |
 | --- | --- |
@@ -283,7 +318,7 @@ A categoria de cada card sai da primeira tag que casar com a tabela. Sem tag com
 Formato:
 
 ```text
-📦 Release {Release_Tribo_VD} - {Data_Deploy}
+📦 Release {número da release} - {Data_Deploy em DD/MM/AAAA}
 🚀 Novidades
 ✨ Melhorias
 🐛 Correções
@@ -299,16 +334,29 @@ Saudação: `Olá {PrimeiroNome}, como está o seu dia?` `PrimeiroNome` é o tre
 
 Tema claro e escuro com Tailwind (`darkMode: 'class'`). A escolha fica em `localStorage` na chave `vdCore_theme`, com valor `light` ou `dark`. Sem valor salvo, vale a preferência do sistema.
 
+## Ausências (tela)
+
+A aba lista ausências com `Status = Ativo`, ordenadas por `Data_Inicio`. Cada linha mostra nome (ou e-mail), período, tipo, modalidade, horas (se `Hora`) e observação.
+
+Integrante da squad vê o botão de cadastrar. No formulário:
+
+- Colaborador comum: o campo de pessoa fica fixo no próprio e-mail.
+- Gestor: escolhe o integrante em lista vinda de `Integrantes_Squad`.
+- `Modalidade = Dia` esconde o campo de horas. `Modalidade = Hora` exige o valor.
+- Tipos sugeridos no select: `Ferias`, `Licenca`, `Treinamento`, `Consulta medica`, `Compensacao de horas`, `Outro`.
+
+Ações de editar e cancelar só aparecem quando o usuário é o dono da ausência ou gestor.
+
 ## Eventos
 
 | Evento | Quem dispara | `detail` | Quem escuta |
 | --- | --- | --- | --- |
-| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit }` | `CalendarModule` |
+| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit, isManager, papel }` | `CalendarModule`, `AbsencesModule` |
 | `vdCore:openDeployModal` | `CalendarModule` | Deploy a editar, ou nada para criar | `DeployModal` |
 | `vdCore:deployScheduled` | `DeployModal` e `CalendarModule` após gravar ou cancelar | Nenhum | `CalendarModule` recarrega a lista |
+| `vdCore:absenceChanged` | `AbsencesModule` após gravar, editar ou cancelar | Nenhum | `AbsencesModule` recarrega a lista |
 | `vdCore:themeChanged` | `HeaderModule` | `{ theme: "light" }` ou `{ theme: "dark" }` | `CapacityModule` |
 
 ## Em aberto
 
-- No board `335`, qual coluna, tag ou campo liga o card à release da planilha.
 - Como regenerar a escala: a partir de qual data e com quantos turnos.

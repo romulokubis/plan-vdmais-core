@@ -60,6 +60,9 @@
       <button onclick="AppShell.switchTab('releasenotes')" id="tab-releasenotes" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
         📦 Release Notes
       </button>
+      <button onclick="AppShell.switchTab('absences')" id="tab-absences" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        🏖️ Ausências
+      </button>
     </nav>
 
     <!-- Área Principal de Exibição das Views -->
@@ -79,6 +82,9 @@
       <div id="view-releasenotes" class="tab-view hidden">
         <?!= include('ReleaseNotesModule'); ?>
       </div>
+      <div id="view-absences" class="tab-view hidden">
+        <?!= include('AbsencesModule'); ?>
+      </div>
     </main>
 
   </div>
@@ -92,12 +98,15 @@
       var currentTab = 'calendar';
       var permissions = {
         email: '',
-        canEdit: false
+        canEdit: false,
+        isManager: false,
+        papel: ''
       };
 
       function fetchPermissions() {
         if (typeof google === 'undefined' || !google.script || !google.script.run) {
           permissions.canEdit = true;
+          permissions.isManager = true;
           return;
         }
 
@@ -108,6 +117,8 @@
               if (resp.success) {
                 permissions.email = resp.email;
                 permissions.canEdit = resp.canEdit;
+                permissions.isManager = !!resp.isManager;
+                permissions.papel = resp.papel || '';
                 window.dispatchEvent(new CustomEvent('vdCore:permissionsLoaded', { detail: permissions }));
               }
             } catch(e) {}
@@ -122,7 +133,7 @@
           el.classList.add('hidden');
         });
 
-        ['capacity', 'batman', 'calendar', 'holidays', 'releasenotes'].forEach(function(t) {
+        ['capacity', 'batman', 'calendar', 'holidays', 'releasenotes', 'absences'].forEach(function(t) {
           var btn = document.getElementById('tab-' + t);
           if (btn) {
             btn.className = "py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer";
@@ -147,6 +158,8 @@
           window.CapacityModule.show();
         } else if (tabId === 'releasenotes' && window.ReleaseNotesModule && window.ReleaseNotesModule.show) {
           window.ReleaseNotesModule.show();
+        } else if (tabId === 'absences' && window.AbsencesModule && window.AbsencesModule.show) {
+          window.AbsencesModule.show();
         }
       }
 
@@ -158,6 +171,7 @@
         if (window.CalendarModule && window.CalendarModule.init) window.CalendarModule.init();
         if (window.HolidaysModule && window.HolidaysModule.init) window.HolidaysModule.init();
         if (window.ReleaseNotesModule && window.ReleaseNotesModule.init) window.ReleaseNotesModule.init();
+        if (window.AbsencesModule && window.AbsencesModule.init) window.AbsencesModule.init();
         if (window.DeployModal && window.DeployModal.init) window.DeployModal.init();
       }
 
@@ -169,6 +183,7 @@
       return {
         switchTab: switchTab,
         canEdit: function() { return permissions.canEdit; },
+        isManager: function() { return permissions.isManager; },
         getUserEmail: function() { return permissions.email; }
       };
     })();

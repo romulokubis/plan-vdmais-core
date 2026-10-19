@@ -1,0 +1,157 @@
+<div id="HolidaysModuleContainer" class="flex flex-col gap-6 w-full">
+  
+  <!-- Card Principal: Feriados, Pontes e Recessos GB -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/60 gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <span>🌴</span> Feriados, Pontes & Recessos Oficiais GB
+        </h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          Regras de bloqueio automático de deploy aplicadas aos feriados nacionais e recessos cadastrados na planilha
+        </p>
+      </div>
+
+      <!-- Filtro de Ano Dinâmico -->
+      <div class="flex items-center gap-2 shrink-0 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+        <label for="selectFeriadosAno" class="text-xs font-bold text-slate-600 dark:text-slate-300">Ano de Consulta:</label>
+        <select id="selectFeriadosAno" onchange="HolidaysModule.changeYear(this.value)" class="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+        </select>
+      </div>
+    </div>
+
+    <!-- Layout de Grid 4 Colunas -->
+    <div id="holidaysListContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+      <p class="text-xs text-slate-400 col-span-full py-8 text-center">Carregando base de feriados...</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+window.HolidaysModule = (function() {
+  
+  var state = {
+    selectedYear: new Date().getFullYear(),
+    holidays: []
+  };
+
+  function setupYearOptions() {
+    var selectEl = document.getElementById('selectFeriadosAno');
+    if (!selectEl) return;
+
+    var currentYear = new Date().getFullYear();
+    state.selectedYear = currentYear;
+
+    var startYear = currentYear - 2;
+    var endYear = currentYear + 3;
+    var html = '';
+
+    for (var y = startYear; y <= endYear; y++) {
+      var isSelected = (y === currentYear) ? 'selected' : '';
+      html += '<option value="' + y + '" ' + isSelected + '>' + y + '</option>';
+    }
+
+    selectEl.innerHTML = html;
+  }
+
+  function renderHolidays() {
+    var container = document.getElementById('holidaysListContainer');
+    if (!container) return;
+
+    if (!state.holidays || state.holidays.length === 0) {
+      container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center">Nenhum feriado cadastrado na planilha para o ano de ' + state.selectedYear + '.</p>';
+      return;
+    }
+
+    var html = '';
+    state.holidays.forEach(function(item) {
+      var isPonte = item.nome.indexOf('Ponte') !== -1;
+      var badgeClass = '';
+      var badgeText = '';
+
+      if (!item.bloqueiaDeploy) {
+        badgeClass = 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+        badgeText = '✅ Deploy Permitido';
+      } else if (isPonte) {
+        badgeClass = 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+        badgeText = '🚧 Emenda / Ponte';
+      } else {
+        badgeClass = 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
+        badgeText = '🚫 Bloqueia Deploy';
+      }
+
+      html += 
+        '<div class="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between gap-3 text-xs hover:border-slate-300 dark:hover:border-slate-600 transition-all">' +
+          '<div class="flex justify-between items-start gap-2">' +
+            '<div class="space-y-0.5">' +
+              '<span class="font-bold text-slate-900 dark:text-white block text-xs leading-snug">' + (item.nome || 'Feriado') + '</span>' +
+              '<span class="text-[10px] text-slate-400 font-mono block">' + (item.esfera || 'Nacional') + (item.regiao ? ' • ' + item.regiao : '') + '</span>' +
+            '</div>' +
+            '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ' + badgeClass + ' shrink-0">' + badgeText + '</span>' +
+          '</div>' +
+          '<div class="text-right border-t border-slate-200/40 dark:border-slate-700/40 pt-2 mt-1 flex justify-between items-center text-slate-500">' +
+            '<span class="text-[10px] uppercase font-semibold text-slate-400">Data Oficial</span>' +
+            '<span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">📆 ' + (item.data || '-') + '</span>' +
+          '</div>' +
+        '</div>';
+    });
+
+    container.innerHTML = html;
+  }
+
+  function fetchHolidaysData(year) {
+    var targetYear = year || state.selectedYear;
+    var container = document.getElementById('holidaysListContainer');
+    if (container) {
+      container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center">Carregando feriados de ' + targetYear + '...</p>';
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.holidays = [];
+      renderHolidays();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var response = JSON.parse(responseStr);
+          if (response.success) {
+            state.holidays = response.data || [];
+            renderHolidays();
+          } else {
+            if (container) container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Erro: ' + response.message + '</p>';
+          }
+        } catch(e) {
+          if (container) container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Erro no parse: ' + e.toString() + '</p>';
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (container) container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Falha no servidor: ' + err.message + '</p>';
+      })
+      .getFeriados(targetYear);
+  }
+
+  return {
+    init: function() {
+      setupYearOptions();
+      fetchHolidaysData(state.selectedYear);
+    },
+    changeYear: function(val) {
+      state.selectedYear = parseInt(val, 10);
+      fetchHolidaysData(state.selectedYear);
+    },
+    show: function() {
+      var container = document.getElementById('HolidaysModuleContainer');
+      if (container) container.classList.remove('hidden');
+      fetchHolidaysData(state.selectedYear);
+    },
+    hide: function() {
+      var container = document.getElementById('HolidaysModuleContainer');
+      if (container) container.classList.add('hidden');
+    }
+  };
+
+})();
+</script>
