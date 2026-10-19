@@ -253,7 +253,7 @@ Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Or
 
 ## Capacidade
 
-A tela consulta um período, com início e fim inclusivos. O atalho **Este mês** preenche o mês corrente. O resultado não é gravado.
+A tela consulta um período, com início e fim inclusivos. Na abertura da aba e no atalho **Este mês**, o filtro é o mês civil corrente (dia 1 ao último dia). O resultado não é gravado.
 
 Entram na conta:
 
@@ -283,9 +283,9 @@ Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
 Cidade ou estado novo passa a valer quando existe na pessoa e numa linha de feriado. Não há lista fechada no código. Pessoa sem estado não recebe feriado estadual. Pessoa sem cidade não recebe feriado municipal.
 
-A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. Um dia é 7,5 horas. A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas e não devolve dias, nome nem papel.
+A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (e inclui `jornada`) e não devolve dias, nome nem papel.
 
-O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ 7,5). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de rituais no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
+O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de rituais no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
 
 ### Previsão de cards
 
