@@ -3,7 +3,7 @@
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-white">Capacidade da Squad</h2>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Horas efetivas de entrega da squad no período.</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Dias efetivos de entrega da squad no período.</p>
       </div>
       <form id="capacity-filter" class="flex flex-col sm:flex-row sm:items-end gap-3">
         <div>
@@ -22,7 +22,7 @@
 
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total da squad</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dias efetivos</p>
       <p id="capacity-total" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
@@ -30,14 +30,14 @@
       <p id="capacity-period" class="mt-2 text-sm font-bold text-slate-900 dark:text-white">—</p>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ritos no período</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ritos no período (dias)</p>
       <p id="capacity-rituals" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
     </div>
   </div>
 
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
-    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Horas por mês</h3>
-    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Horas efetivas da squad em cada mês do período filtrado.</p>
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Dias por mês</h3>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Dias efetivos da squad em cada mês do período filtrado.</p>
     <div id="capacity-message" class="hidden mb-4 text-xs text-red-600 dark:text-red-300"></div>
     <div class="h-64"><canvas id="capacityChart"></canvas></div>
   </div>
@@ -94,11 +94,17 @@ window.CapacityModule = (function() {
     };
   }
 
-  function formatHours(value) {
-    return Number(value || 0).toLocaleString('pt-BR', {
+  var JORNADA = 7.5;
+
+  function hoursToDays(hours) {
+    return Number(hours || 0) / JORNADA;
+  }
+
+  function formatDays(hours) {
+    return hoursToDays(hours).toLocaleString('pt-BR', {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1
-    });
+    }) + ' dias';
   }
 
   function monthLabel(key) {
@@ -128,8 +134,8 @@ window.CapacityModule = (function() {
       data: {
         labels: state.meses.map(function(item) { return monthLabel(item.mes); }),
         datasets: [{
-          label: 'Horas efetivas no mês',
-          data: state.meses.map(function(item) { return item.horas; }),
+          label: 'Dias efetivos no mês',
+          data: state.meses.map(function(item) { return hoursToDays(item.horas); }),
           backgroundColor: colors.line
         }]
       },
@@ -139,7 +145,16 @@ window.CapacityModule = (function() {
         plugins: { legend: { labels: { color: colors.text } } },
         scales: {
           x: { ticks: { color: colors.text }, grid: { color: colors.grid } },
-          y: { ticks: { color: colors.text }, grid: { color: colors.grid }, beginAtZero: true }
+          y: {
+            ticks: {
+              color: colors.text,
+              callback: function(value) {
+                return Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+              }
+            },
+            grid: { color: colors.grid },
+            beginAtZero: true
+          }
         }
       }
     });
@@ -293,7 +308,7 @@ window.CapacityModule = (function() {
       ' simulações com base no throughput de ' + monthLabel(data.historicoInicio) +
       ' a ' + monthLabel(data.historicoFim) + '.';
     if (!data.mesesCheios) {
-      note += ' O período filtrado não fecha meses inteiros: a previsão usa meses cheios e as horas usam os dias escolhidos.';
+      note += ' O período filtrado não fecha meses inteiros: a previsão usa meses cheios e a capacidade usa os dias escolhidos.';
     }
     document.getElementById('throughput-note').textContent = note;
     document.getElementById('throughput-scope').textContent =
@@ -320,9 +335,9 @@ window.CapacityModule = (function() {
 
   function render(data) {
     state.meses = data.meses || [];
-    document.getElementById('capacity-total').textContent = formatHours(data.total) + ' h';
+    document.getElementById('capacity-total').textContent = formatDays(data.total);
     document.getElementById('capacity-period').textContent = data.inicio + ' → ' + data.fim;
-    document.getElementById('capacity-rituals').textContent = formatHours(data.rituais) + ' h';
+    document.getElementById('capacity-rituals').textContent = formatDays(data.rituais);
     renderChart();
   }
 
