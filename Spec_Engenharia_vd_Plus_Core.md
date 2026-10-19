@@ -283,9 +283,9 @@ Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
 Cidade ou estado novo passa a valer quando existe na pessoa e numa linha de feriado. Não há lista fechada no código. Pessoa sem estado não recebe feriado estadual. Pessoa sem cidade não recebe feriado municipal.
 
-A tela mostra três números da squad: horas efetivas do período, o período filtrado e as horas de ritos descontadas nesse período. O rótulo na tela é **Ritos no período**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` também não devolve esses campos.
+A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. Um dia é 7,5 horas. A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas e não devolve dias, nome nem papel.
 
-O gráfico mostra as horas efetivas de cada mês separadamente, dentro do período filtrado. Não há soma acumulada entre os meses. O total do período continua sendo uma conta só, com o corte de rituais no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras mensais coincide com o total da squad.
+O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ 7,5). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de rituais no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
 
 ### Previsão de cards
 
@@ -295,7 +295,7 @@ O histórico não segue o filtro. São os seis meses civis já encerrados antes 
 
 O período filtrado só define o horizonte: a quantidade de meses civis que o intervalo toca. Cada mês do horizonte sorteia, com reposição, um dos seis meses do histórico. São 10.000 simulações. A tela mostra o cenário conservador (percentil 15), a mediana e o cenário otimista (percentil 85). O gráfico principal agrupa o histórico em blocos do mesmo tamanho do horizonte e coloca ao lado a faixa projetada do período filtrado, com um marcador na mediana. O gráfico mensal permanece abaixo, como histórico usado nas simulações, somente quando o horizonte tem mais de um mês. A descrição na tela é: `VD Plataforma Core · De {início} a {fim}. Cada mês entra nas simulações com o mesmo peso. Resultado de 10.000 simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)`.
 
-Se o filtro não começa no dia 1 e termina no último dia do mês final, a tela avisa que a previsão usa meses cheios e as horas usam os dias escolhidos. A resposta não traz título, dono nem lista de cards.
+Se o filtro não começa no dia 1 e termina no último dia do mês final, a tela avisa que a previsão usa meses cheios e a capacidade usa os dias escolhidos. A resposta não traz título, dono nem lista de cards.
 
 ## Release notes
 
