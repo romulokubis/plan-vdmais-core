@@ -23,16 +23,19 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
+
       - name: Write clasp credentials
         env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASPRC_JSON_B64: ${{ secrets.CLASPRC_JSON_B64 }}
         run: |
-          if [ -z "$CLASPRC_JSON" ]; then
-            echo "::error::Secret CLASPRC_JSON não configurado."
+          if [ -z "$CLASPRC_JSON_B64" ]; then
+            echo "::error::Secret CLASPRC_JSON_B64 não configurado."
             exit 1
           fi
-          echo "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          echo "$CLASPRC_JSON_B64" | base64 -d > "$HOME/.clasprc.json"
           chmod 600 "$HOME/.clasprc.json"
+          node -e "JSON.parse(require('fs').readFileSync(require('os').homedir()+'/.clasprc.json','utf8')); console.log('clasprc JSON ok')"
+
       - run: npx clasp push --force
       - run: npx clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "CI ${GITHUB_SHA::7}"
       - run: echo "https://script.google.com/a/macros/grupoboticario.com.br/s/${DEPLOYMENT_ID}/exec"
