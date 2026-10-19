@@ -26,15 +26,22 @@ jobs:
 
       - name: Write clasp credentials
         env:
-          CLASPRC_JSON_B64: ${{ secrets.CLASPRC_JSON_B64 }}
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
         run: |
-          if [ -z "$CLASPRC_JSON_B64" ]; then
-            echo "::error::Secret CLASPRC_JSON_B64 não configurado."
-            exit 1
-          fi
-          echo "$CLASPRC_JSON_B64" | base64 -d > "$HOME/.clasprc.json"
-          chmod 600 "$HOME/.clasprc.json"
-          node -e "JSON.parse(require('fs').readFileSync(require('os').homedir()+'/.clasprc.json','utf8')); console.log('clasprc JSON ok')"
+          node <<'NODE'
+          const fs = require('fs');
+          const os = require('os');
+          const path = require('path');
+          const raw = process.env.CLASPRC_JSON;
+          if (!raw || !raw.trim()) {
+            console.error('Secret CLASPRC_JSON vazio');
+            process.exit(1);
+          }
+          const out = path.join(os.homedir(), '.clasprc.json');
+          fs.writeFileSync(out, raw, 'utf8');
+          JSON.parse(fs.readFileSync(out, 'utf8'));
+          console.log('clasprc JSON ok');
+          NODE
 
       - run: npx clasp push --force
       - run: npx clasp deploy --deploymentId "$DEPLOYMENT_ID" --description "CI ${GITHUB_SHA::7}"
