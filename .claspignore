@@ -1,0 +1,12 @@
+﻿.git/**
+.github/**
+node_modules/**
+**/*.md
+.gitignore
+.claspignore
+.clasprc.json
+package.json
+package-lock.json
+npm-debug.log*
+.DS_Store
+Thumbs.db
