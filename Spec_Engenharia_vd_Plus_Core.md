@@ -69,6 +69,7 @@ Regras:
 | `HolidaysModule.html` | Feriados, pontes e recesso por ano |
 | `ReleaseNotesModule.html` | Release notes |
 | `AbsencesModule.html` | Lista e formulário de ausências (`window.AbsencesModule`) |
+| `RitualsModule.html` | Cadastro de ritos e overhead (`window.RitualsModule`) |
 
 ## Abas e navegação
 
@@ -80,6 +81,7 @@ Regras:
 | 🌴 Feriados & Recesso | `view-holidays` | `HolidaysModule` |
 | 📦 Release Notes | `view-releasenotes` | `ReleaseNotesModule` |
 | 🏖️ Ausências | `view-absences` | `AbsencesModule` |
+| ⏱️ Ritos & Overhead | `view-rituals` | `RitualsModule` |
 
 A aba inicial é **Calendário de Deploy**. Trocar de aba esconde os outros containers e chama `show()` do módulo da aba, quando existir.
 
@@ -159,13 +161,17 @@ Uma linha é o deploy de uma release em uma instância. Cada release da tribo co
 
 ### `Rituais_e_Overhead`
 
-A carga muda quando o time muda os ritos. O cálculo lê a aba no momento da consulta.
+A carga muda quando o time muda os ritos ou o overhead. O cálculo lê a aba no momento da consulta.
 
 | Coluna | Conteúdo |
 | --- | --- |
-| Ritual | Nome do ritual |
+| ID | `RIT-001`, `RIT-002`, ... |
+| Nome | Nome do item |
 | Horas_Semana | Horas por semana útil de cinco dias, por pessoa |
 | Obrigatorio | `Sim` ou `Não`. Só `Sim` entra na conta |
+| Categoria | `Ritual` ou `Overhead` |
+
+Criar / editar / excluir pela aba **Ritos & Overhead**, só `Tech Manager`. Linha legada sem `ID`/`Categoria` é migrada na gestão; sem categoria vale `Ritual`.
 
 ### `Ausencias_e_Eventos`
 
@@ -270,8 +276,8 @@ Para cada pessoa, no período filtrado:
 3. Sai a ausência com `Status` ativo (ou sem status, na linha legada). `Modalidade = Dia` (ou `Horas` vazio na linha legada): cada dia útil do intervalo sai por inteiro. `Modalidade = Hora` (ou `Horas` preenchido na linha legada): desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias. Ausência `Cancelado` não entra.
 4. Dia que sobrou e cai num turno de sustentação dessa pessoa vale zero para entrega. O turno tira 100% do dia.
 5. `Horas_base` é a soma das horas dos dias que ainda restam.
-6. `H_rituais` é a soma de `Horas_Semana` obrigatórias, vezes os dias de entrega da pessoa, dividido por 5.
-7. `Horas_Efetivas = participacao × max(0, Horas_base - H_rituais)`.
+6. `H_ritos` é a soma de `Horas_Semana` obrigatórias com `Categoria = Ritual`, vezes os dias de entrega da pessoa, dividido por 5. `H_overhead` idem com `Categoria = Overhead`. Sem categoria na linha legada, conta como Ritual.
+7. `Horas_Efetivas = participacao × max(0, Horas_base - H_ritos - H_overhead)`.
 
 O total da squad é a soma das horas efetivas de quem entrou na conta.
 
@@ -283,9 +289,9 @@ Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
 Cidade ou estado novo passa a valer quando existe na pessoa e numa linha de feriado. Não há lista fechada no código. Pessoa sem estado não recebe feriado estadual. Pessoa sem cidade não recebe feriado municipal.
 
-A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (e inclui `jornada`) e não devolve dias, nome nem papel.
+A tela mostra quatro números da squad, convertidos só na interface: dias efetivos do período, o período filtrado, os dias de rito e os dias de overhead descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos**, **Ritos no período (dias)** e **Overhead no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (inclui `jornada`, `rituais` e `overhead`) e não devolve dias, nome nem papel.
 
-O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de rituais no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
+O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de ritos e overhead no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
 
 ### Previsão de cards
 
@@ -351,10 +357,11 @@ Ações de editar e cancelar só aparecem quando o usuário é o dono da ausênc
 
 | Evento | Quem dispara | `detail` | Quem escuta |
 | --- | --- | --- | --- |
-| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit, isManager, papel }` | `CalendarModule`, `AbsencesModule` |
+| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit, isManager, papel }` | `CalendarModule`, `AbsencesModule`, `RitualsModule` |
 | `vdCore:openDeployModal` | `CalendarModule` | Deploy a editar, ou nada para criar | `DeployModal` |
 | `vdCore:deployScheduled` | `DeployModal` e `CalendarModule` após gravar ou cancelar | Nenhum | `CalendarModule` recarrega a lista |
 | `vdCore:absenceChanged` | `AbsencesModule` após gravar, editar ou cancelar | Nenhum | `AbsencesModule` recarrega a lista |
+| `vdCore:ritualsChanged` | `RitualsModule` após gravar, editar ou excluir | Nenhum | `RitualsModule` recarrega a lista |
 | `vdCore:themeChanged` | `HeaderModule` | `{ theme: "light" }` ou `{ theme: "dark" }` | `CapacityModule` |
 
 ## Em aberto
