@@ -283,7 +283,24 @@ window.CalendarModule = (function() {
     container.innerHTML = html;
   }
 
+  function showFetchError(message) {
+    var container = document.getElementById('releasesListContainer');
+    if (!container) return;
+    container.innerHTML =
+      '<div class="bg-white dark:bg-slate-800 rounded-2xl border border-rose-200 dark:border-rose-900/50 p-8 text-center text-xs text-rose-600 dark:text-rose-300">' +
+        (message || 'Não foi possível carregar os agendamentos.') +
+      '</div>';
+  }
+
   function fetchDeploysData() {
+    var container = document.getElementById('releasesListContainer');
+    if (container) {
+      container.innerHTML =
+        '<div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-8 text-center text-xs text-slate-400">' +
+          'Carregando agendamentos de deploy...' +
+        '</div>';
+    }
+
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.deploys = [
         { id: 'REL-001', releaseTribo: 'Release 5.16', releaseSistema: 'VD Core Microservice', dataInicio: '01/09/2026', dataFim: '15/09/2026', dataDeploy: '16/09/2026', status: 'Agendado', instancia: 'Portugal' },
@@ -298,10 +315,17 @@ window.CalendarModule = (function() {
         try {
           var resp = JSON.parse(responseStr);
           if (resp.success) {
-            state.deploys = resp.data;
+            state.deploys = resp.data || [];
             renderDeploys();
+          } else {
+            showFetchError(resp.message || 'Não foi possível carregar os agendamentos.');
           }
-        } catch(e) {}
+        } catch (e) {
+          showFetchError('Resposta inválida do servidor ao carregar deploys.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        showFetchError(err && err.message ? err.message : 'Falha no servidor ao carregar deploys.');
       })
       .getDeploysScheduled();
   }

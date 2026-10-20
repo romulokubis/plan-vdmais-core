@@ -267,7 +267,7 @@ Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Or
 
 ## Capacidade
 
-A tela consulta um período, com início e fim inclusivos. Na abertura da aba e no atalho **Este mês**, o filtro é o mês civil corrente (dia 1 ao último dia). O resultado não é gravado.
+A tela consulta um período, com início e fim inclusivos. Na abertura da aba Capacidade e no atalho **Este mês**, o filtro é o mês civil corrente (dia 1 ao último dia) e a consulta roda. Essa consulta (incluindo a previsão de cards) não dispara na abertura da app nem enquanto outra aba está ativa. O resultado não é gravado.
 
 Entram na conta:
 
