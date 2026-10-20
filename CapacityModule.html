@@ -20,7 +20,7 @@
     </div>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dias efetivos</p>
       <p id="capacity-total" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
@@ -32,6 +32,10 @@
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ritos no período (dias)</p>
       <p id="capacity-rituals" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Overhead no período (dias)</p>
+      <p id="capacity-overhead" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
     </div>
   </div>
 
@@ -75,7 +79,7 @@ window.CapacityModule = (function() {
   var chart = null;
   var comparisonChart = null;
   var throughputChart = null;
-  var state = { meses: [], historico: [], comparacao: null };
+  var state = { meses: [], historico: [], comparacao: null, jornada: 7.5 };
   var monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
   function pad(n) {
@@ -94,10 +98,9 @@ window.CapacityModule = (function() {
     };
   }
 
-  var JORNADA = 7.5;
-
   function hoursToDays(hours) {
-    return Number(hours || 0) / JORNADA;
+    var jornada = Number(state.jornada) > 0 ? Number(state.jornada) : 7.5;
+    return Number(hours || 0) / jornada;
   }
 
   function formatDays(hours) {
@@ -105,6 +108,13 @@ window.CapacityModule = (function() {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1
     }) + ' dias';
+  }
+
+  function applyCurrentMonth() {
+    var range = monthRange();
+    document.getElementById('capacity-inicio').value = range.inicio;
+    document.getElementById('capacity-fim').value = range.fim;
+    return range;
   }
 
   function monthLabel(key) {
@@ -335,9 +345,11 @@ window.CapacityModule = (function() {
 
   function render(data) {
     state.meses = data.meses || [];
+    if (Number(data.jornada) > 0) state.jornada = Number(data.jornada);
     document.getElementById('capacity-total').textContent = formatDays(data.total);
     document.getElementById('capacity-period').textContent = data.inicio + ' → ' + data.fim;
     document.getElementById('capacity-rituals').textContent = formatDays(data.rituais);
+    document.getElementById('capacity-overhead').textContent = formatDays(data.overhead);
     renderChart();
   }
 
@@ -421,13 +433,9 @@ window.CapacityModule = (function() {
 
   return {
     init: function() {
-      var range = monthRange();
-      document.getElementById('capacity-inicio').value = range.inicio;
-      document.getElementById('capacity-fim').value = range.fim;
+      applyCurrentMonth();
       document.getElementById('capacity-month').addEventListener('click', function() {
-        var current = monthRange();
-        document.getElementById('capacity-inicio').value = current.inicio;
-        document.getElementById('capacity-fim').value = current.fim;
+        applyCurrentMonth();
         load();
       });
       document.getElementById('capacity-filter').addEventListener('submit', function(event) {
@@ -447,6 +455,7 @@ window.CapacityModule = (function() {
       load();
     },
     show: function() {
+      applyCurrentMonth();
       load();
     }
   };

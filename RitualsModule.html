@@ -1,0 +1,324 @@
+<div id="RitualsModuleContainer" class="flex flex-col gap-6 w-full">
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ritos &amp; Overhead</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Carga semanal por pessoa usada na capacidade da squad</p>
+    </div>
+    <button id="btnCreateRitual" onclick="RitualsModule.openCreate()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
+      <span>+</span> Novo item
+    </button>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <th class="py-3 px-3">ID</th>
+            <th class="py-3 px-3">Nome</th>
+            <th class="py-3 px-3 text-center">Categoria</th>
+            <th class="py-3 px-3 text-center">Horas/semana</th>
+            <th class="py-3 px-3 text-center">Obrigatório</th>
+            <th class="py-3 px-3 text-right">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="ritualsTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/60">
+          <tr>
+            <td colspan="6" class="py-6 text-center text-xs text-slate-400">Carregando...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div id="ritualModalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg shadow-2xl overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <span class="text-xl">⏱️</span>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white" id="ritualModalTitle">Novo item</h3>
+      </div>
+      <button type="button" onclick="RitualsModule.closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold focus:outline-none cursor-pointer">&times;</button>
+    </div>
+
+    <form id="ritualForm" onsubmit="RitualsModule.handleSubmit(event)" class="p-6 space-y-4">
+      <input type="hidden" id="ritualInputId" value="" />
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Nome *</label>
+        <input type="text" id="ritualInputNome" required placeholder="Ex: Daily, Planning, Overhead interno" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Categoria *</label>
+          <select id="ritualInputCategoria" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="Ritual">Ritual</option>
+            <option value="Overhead">Overhead</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Horas / semana *</label>
+          <input type="number" id="ritualInputHoras" required min="0.25" step="0.25" placeholder="Ex: 1.25" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Obrigatório *</label>
+        <select id="ritualInputObrigatorio" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+          <option value="Sim">Sim (entra na capacidade)</option>
+          <option value="Não">Não</option>
+        </select>
+      </div>
+
+      <div id="ritualModalFeedback" class="hidden text-xs py-2 px-3 rounded-lg"></div>
+
+      <div class="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+        <button type="button" onclick="RitualsModule.closeModal()" class="px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-all cursor-pointer">Fechar</button>
+        <button type="submit" id="btnSubmitRitual" class="px-5 py-2 text-xs font-bold text-white bg-[#008775] hover:bg-[#006e5f] rounded-lg shadow transition-all cursor-pointer">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+window.RitualsModule = (function() {
+  var state = {
+    items: [],
+    isManager: false
+  };
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function applyPermissionsUI() {
+    var btn = document.getElementById('btnCreateRitual');
+    if (!btn) return;
+    if (state.isManager) btn.classList.remove('hidden');
+    else btn.classList.add('hidden');
+  }
+
+  function syncPermissions() {
+    if (window.AppShell && typeof window.AppShell.isManager === 'function') {
+      state.isManager = window.AppShell.isManager();
+    }
+    applyPermissionsUI();
+  }
+
+  function showFeedback(message, isError) {
+    var el = document.getElementById('ritualModalFeedback');
+    if (!el) return;
+    el.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-emerald-50', 'text-emerald-700');
+    el.classList.add(isError ? 'bg-red-50' : 'bg-emerald-50', isError ? 'text-red-700' : 'text-emerald-700');
+    el.textContent = message;
+  }
+
+  function closeModal() {
+    var backdrop = document.getElementById('ritualModalBackdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+  }
+
+  function openCreate() {
+    if (!state.isManager) return;
+    document.getElementById('ritualModalTitle').textContent = 'Novo item';
+    document.getElementById('ritualInputId').value = '';
+    document.getElementById('ritualInputNome').value = '';
+    document.getElementById('ritualInputCategoria').value = 'Ritual';
+    document.getElementById('ritualInputHoras').value = '';
+    document.getElementById('ritualInputObrigatorio').value = 'Sim';
+    document.getElementById('ritualModalFeedback').classList.add('hidden');
+    document.getElementById('ritualModalBackdrop').classList.remove('hidden');
+  }
+
+  function openEdit(id) {
+    if (!state.isManager) return;
+    var found = state.items.find(function(item) { return item.id === id; });
+    if (!found) return;
+    document.getElementById('ritualModalTitle').textContent = 'Editar ' + id;
+    document.getElementById('ritualInputId').value = id;
+    document.getElementById('ritualInputNome').value = found.nome || '';
+    document.getElementById('ritualInputCategoria').value = found.categoria === 'Overhead' ? 'Overhead' : 'Ritual';
+    document.getElementById('ritualInputHoras').value = found.horasSemana || '';
+    document.getElementById('ritualInputObrigatorio').value = found.obrigatorio === 'Sim' ? 'Sim' : 'Não';
+    document.getElementById('ritualModalFeedback').classList.add('hidden');
+    document.getElementById('ritualModalBackdrop').classList.remove('hidden');
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!state.isManager) return;
+
+    var payload = {
+      id: document.getElementById('ritualInputId').value || '',
+      nome: document.getElementById('ritualInputNome').value,
+      categoria: document.getElementById('ritualInputCategoria').value,
+      horasSemana: document.getElementById('ritualInputHoras').value,
+      obrigatorio: document.getElementById('ritualInputObrigatorio').value
+    };
+
+    var btn = document.getElementById('btnSubmitRitual');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      showFeedback('Ambiente local: alteração não persistida.', true);
+      if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+      return;
+    }
+
+    var runner = google.script.run
+      .withSuccessHandler(function(responseStr) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            closeModal();
+            window.dispatchEvent(new CustomEvent('vdCore:ritualsChanged'));
+          } else {
+            showFeedback(resp.message || 'Não foi possível salvar.', true);
+          }
+        } catch (e) {
+          showFeedback('Erro ao processar resposta.', true);
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+        showFeedback('Falha no servidor: ' + err.message, true);
+      });
+
+    if (payload.id) runner.updateRitual(payload);
+    else runner.saveRitual(payload);
+  }
+
+  function deleteItem(id) {
+    if (!state.isManager) return;
+    if (!confirm('Excluir o item ' + id + '?')) return;
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.items = state.items.filter(function(item) { return item.id !== id; });
+      render();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) window.dispatchEvent(new CustomEvent('vdCore:ritualsChanged'));
+          else alert(resp.message || 'Não foi possível excluir.');
+        } catch (e) {
+          alert('Erro ao processar resposta.');
+        }
+      })
+      .withFailureHandler(function(err) {
+        alert('Falha no servidor: ' + err.message);
+      })
+      .deleteRitual(id);
+  }
+
+  function render() {
+    var tbody = document.getElementById('ritualsTableBody');
+    if (!tbody) return;
+
+    if (!state.items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Nenhum item cadastrado.</td></tr>';
+      return;
+    }
+
+    var html = '';
+    state.items.forEach(function(item) {
+      var catBadge = item.categoria === 'Overhead'
+        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">Overhead</span>'
+        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">Ritual</span>';
+
+      var actions = '';
+      if (state.isManager) {
+        actions =
+          '<button type="button" onclick="RitualsModule.openEdit(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-[#008775] dark:hover:text-[#2dd4bf] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Editar">✏️</button>' +
+          '<button type="button" onclick="RitualsModule.deleteItem(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Excluir">🗑️</button>';
+      }
+
+      html +=
+        '<tr class="hover:bg-slate-50/80 dark:hover:bg-slate-900/30">' +
+          '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + escapeHtml(item.id) + '</td>' +
+          '<td class="py-3 px-3 text-xs font-medium text-slate-900 dark:text-white">' + escapeHtml(item.nome) + '</td>' +
+          '<td class="py-3 px-3 text-center">' + catBadge + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(item.horasSemana) + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(item.obrigatorio) + '</td>' +
+          '<td class="py-3 px-3 text-right whitespace-nowrap">' + actions + '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function fetchItems() {
+    var tbody = document.getElementById('ritualsTableBody');
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Carregando...</td></tr>';
+    }
+
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      state.items = [];
+      render();
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function(responseStr) {
+        try {
+          var resp = JSON.parse(responseStr);
+          if (resp.success) {
+            state.items = resp.data || [];
+            render();
+          } else if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-red-500">' + escapeHtml(resp.message) + '</td></tr>';
+          }
+        } catch (e) {
+          if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-red-500">Erro ao processar resposta.</td></tr>';
+          }
+        }
+      })
+      .withFailureHandler(function(err) {
+        if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-red-500">Falha: ' + escapeHtml(err.message) + '</td></tr>';
+        }
+      })
+      .getRituals();
+  }
+
+  return {
+    init: function() {
+      syncPermissions();
+      fetchItems();
+      window.addEventListener('vdCore:permissionsLoaded', function(e) {
+        if (e && e.detail) state.isManager = !!e.detail.isManager;
+        applyPermissionsUI();
+        render();
+      });
+      window.addEventListener('vdCore:ritualsChanged', function() {
+        fetchItems();
+      });
+    },
+    show: function() {
+      syncPermissions();
+      fetchItems();
+    },
+    openCreate: openCreate,
+    openEdit: openEdit,
+    deleteItem: deleteItem,
+    closeModal: closeModal,
+    handleSubmit: handleSubmit
+  };
+})();
+</script>

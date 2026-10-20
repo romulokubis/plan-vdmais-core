@@ -676,6 +676,257 @@ function cancelAbsence(id) {
   }
 }
 
+var RITUAL_HEADERS = ['ID', 'Nome', 'Horas_Semana', 'Obrigatorio', 'Categoria'];
+
+function nextRitualId(sheet) {
+  var data = sheet.getDataRange().getDisplayValues();
+  var max = 0;
+  for (var i = 1; i < data.length; i++) {
+    var match = String(data[i][0] || '').trim().match(/^RIT-(\d+)$/i);
+    if (!match) continue;
+    var n = parseInt(match[1], 10);
+    if (n > max) max = n;
+  }
+  return 'RIT-' + padIdNumber(max + 1);
+}
+
+function parseRitualCategoria(value) {
+  var key = normalizeHeaderKey(value);
+  if (key === 'overhead') return 'Overhead';
+  return 'Ritual';
+}
+
+function parseRitualObrigatorio(value) {
+  return normalizePlace(value) === 'sim' ? 'Sim' : 'Nao';
+}
+
+function isLegacyRitualsSheet(headers, firstDataRow) {
+  var h0 = normalizeHeaderKey(headers[0]);
+  if (h0 === 'id') return false;
+  if (h0 === 'ritual' || h0 === 'nome') return true;
+  if (firstDataRow && !String(firstDataRow[0] || '').match(/^RIT-/i) && String(firstDataRow[0] || '').trim()) {
+    return true;
+  }
+  return false;
+}
+
+function ensureRitualsSheet(ss) {
+  var sheet = ss.getSheetByName('Rituais_e_Overhead');
+  if (!sheet) {
+    sheet = ss.insertSheet('Rituais_e_Overhead');
+    sheet.appendRow(RITUAL_HEADERS);
+    return sheet;
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  var firstData = lastRow > 1 ? sheet.getRange(2, 1, 1, lastCol).getDisplayValues()[0] : null;
+
+  if (isLegacyRitualsSheet(headers, firstData)) {
+    var legacy = sheet.getDataRange().getDisplayValues();
+    var migrated = [RITUAL_HEADERS];
+    for (var i = 1; i < legacy.length; i++) {
+      var row = legacy[i];
+      var nome = String(row[0] || '').trim();
+      if (!nome) continue;
+      var cat = row.length > 3 ? parseRitualCategoria(row[3]) : 'Ritual';
+      migrated.push([
+        'RIT-' + padIdNumber(i),
+        nome,
+        String(row[1] || '').trim(),
+        parseRitualObrigatorio(row[2]),
+        cat
+      ]);
+    }
+    sheet.clear();
+    sheet.getRange(1, 1, migrated.length, RITUAL_HEADERS.length).setValues(migrated);
+    return sheet;
+  }
+
+  return sheet;
+}
+
+function readRitualRow(row) {
+  var c0 = String(row[0] || '').trim();
+  if (c0.match(/^RIT-/i)) {
+    return {
+      id: c0,
+      nome: String(row[1] || '').trim(),
+      horasSemana: String(row[2] || '').trim(),
+      obrigatorio: parseRitualObrigatorio(row[3]),
+      categoria: parseRitualCategoria(row[4])
+    };
+  }
+
+  return {
+    id: '',
+    nome: c0,
+    horasSemana: String(row[1] || '').trim(),
+    obrigatorio: parseRitualObrigatorio(row[2]),
+    categoria: row.length > 3 ? parseRitualCategoria(row[3]) : 'Ritual'
+  };
+}
+
+function sumWeeklyByCategoria(ss) {
+  var weekly = { Ritual: 0, Overhead: 0 };
+  sheetRows(ss, 'Rituais_e_Overhead').forEach(function(row) {
+    var item = readRitualRow(row);
+    if (item.obrigatorio !== 'Sim') return;
+    var hours = parseFloat(String(item.horasSemana || '').replace(',', '.'));
+    if (isNaN(hours) || hours <= 0) return;
+    weekly[item.categoria] += hours;
+  });
+  return weekly;
+}
+
+function validateRitualPayload(payload) {
+  if (!payload) return { ok: false, message: 'Dados não informados.' };
+  var nome = String(payload.nome || '').trim();
+  if (!nome) return { ok: false, message: 'Informe o nome.' };
+  var hours = parseFloat(String(payload.horasSemana || '').replace(',', '.'));
+  if (isNaN(hours) || hours <= 0) {
+    return { ok: false, message: 'Informe horas por semana maiores que zero.' };
+  }
+  var obrigatorio = parseRitualObrigatorio(payload.obrigatorio);
+  var categoria = parseRitualCategoria(payload.categoria);
+  return {
+    ok: true,
+    nome: nome,
+    horasSemana: String(hours),
+    obrigatorio: obrigatorio === 'Sim' ? 'Sim' : 'Não',
+    categoria: categoria
+  };
+}
+
+function getRituals() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    ensureRitualsSheet(ss);
+    var sheet = ss.getSheetByName('Rituais_e_Overhead');
+    var data = sheet.getDataRange().getDisplayValues();
+    var items = [];
+    for (var i = 1; i < data.length; i++) {
+      var item = readRitualRow(data[i]);
+      if (!item.nome) continue;
+      items.push(item);
+    }
+    items.sort(function(a, b) {
+      if (a.categoria !== b.categoria) return a.categoria === 'Ritual' ? -1 : 1;
+      return String(a.nome).localeCompare(String(b.nome), 'pt-BR');
+    });
+    return JSON.stringify({ success: true, data: items });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: e.toString() });
+  }
+}
+
+function saveRitual(payload) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized || !actor.isManager) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas o Tech Manager pode cadastrar ritos e overhead.'
+      });
+    }
+    var validated = validateRitualPayload(payload);
+    if (!validated.ok) return JSON.stringify({ success: false, message: validated.message });
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var sheet = ensureRitualsSheet(ss);
+    var id = nextRitualId(sheet);
+    sheet.appendRow([
+      id,
+      validated.nome,
+      validated.horasSemana,
+      validated.obrigatorio,
+      validated.categoria
+    ]);
+    return JSON.stringify({ success: true, message: 'Item cadastrado!', id: id });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao salvar: ' + e.toString() });
+  }
+}
+
+function updateRitual(payload) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized || !actor.isManager) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas o Tech Manager pode alterar ritos e overhead.'
+      });
+    }
+    if (!payload || !payload.id) {
+      return JSON.stringify({ success: false, message: 'ID não informado.' });
+    }
+    var validated = validateRitualPayload(payload);
+    if (!validated.ok) return JSON.stringify({ success: false, message: validated.message });
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var sheet = ensureRitualsSheet(ss);
+    var data = sheet.getDataRange().getDisplayValues();
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      var item = readRitualRow(data[i]);
+      if (String(item.id).trim() === String(payload.id).trim()) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    if (rowIndex === -1) {
+      return JSON.stringify({ success: false, message: 'Item ' + payload.id + ' não encontrado.' });
+    }
+    sheet.getRange(rowIndex, 1, 1, RITUAL_HEADERS.length).setValues([[
+      payload.id,
+      validated.nome,
+      validated.horasSemana,
+      validated.obrigatorio,
+      validated.categoria
+    ]]);
+    return JSON.stringify({ success: true, message: 'Item ' + payload.id + ' atualizado!' });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao atualizar: ' + e.toString() });
+  }
+}
+
+function deleteRitual(id) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized || !actor.isManager) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas o Tech Manager pode excluir ritos e overhead.'
+      });
+    }
+    if (!id) return JSON.stringify({ success: false, message: 'ID não informado.' });
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var sheet = ensureRitualsSheet(ss);
+    var data = sheet.getDataRange().getDisplayValues();
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      var item = readRitualRow(data[i]);
+      if (String(item.id).trim() === String(id).trim()) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    if (rowIndex === -1) {
+      return JSON.stringify({ success: false, message: 'Item ' + id + ' não encontrado.' });
+    }
+    sheet.deleteRow(rowIndex);
+    return JSON.stringify({ success: true, message: 'Item ' + id + ' excluído!' });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao excluir: ' + e.toString() });
+  }
+}
+
 function findVesperaHolidayName(dateObj, feriados) {
   var target = formatSheetDate(dateObj);
   for (var i = 0; i < feriados.length; i++) {
@@ -1376,12 +1627,9 @@ function getCapacity(payload) {
 
     var calendar = buildCapacityCalendar(sheetRows(ss, 'Feriados_e_Pontes'));
 
-    var weeklyRituals = 0;
-    sheetRows(ss, 'Rituais_e_Overhead').forEach(function(row) {
-      if (normalizePlace(row[2]) !== 'sim') return;
-      var hours = parseFloat(String(row[1] || '').replace(',', '.'));
-      if (!isNaN(hours) && hours > 0) weeklyRituals += hours;
-    });
+    var weeklyByCat = sumWeeklyByCategoria(ss);
+    var weeklyRituals = weeklyByCat.Ritual;
+    var weeklyOverhead = weeklyByCat.Overhead;
 
     var absences = [];
     sheetRows(ss, 'Ausencias_e_Eventos').forEach(function(row) {
@@ -1415,6 +1663,7 @@ function getCapacity(payload) {
     var jornada = 7.5;
     var total = 0;
     var rituaisPeriodo = 0;
+    var overheadPeriodo = 0;
     var months = {};
     var monthCursor = new Date(start.getFullYear(), start.getMonth(), 1);
     var monthEnd = new Date(end.getFullYear(), end.getMonth(), 1);
@@ -1479,9 +1728,15 @@ function getCapacity(payload) {
       });
 
       var rituais = weeklyRituals * diasEntrega / 5;
-      var efetivas = person.participacao * Math.max(0, entrega - rituais);
+      var overhead = weeklyOverhead * diasEntrega / 5;
+      var desconto = rituais + overhead;
+      var efetivas = person.participacao * Math.max(0, entrega - desconto);
       total += efetivas;
-      rituaisPeriodo += person.participacao * Math.min(rituais, entrega);
+      var rituaisAplicados = Math.min(rituais, entrega);
+      var restoAposRitos = Math.max(0, entrega - rituaisAplicados);
+      var overheadAplicados = Math.min(overhead, restoAposRitos);
+      rituaisPeriodo += person.participacao * rituaisAplicados;
+      overheadPeriodo += person.participacao * overheadAplicados;
 
       if (efetivas <= 0 || entrega <= 0) return;
       sortedDateKeys(dayHours).forEach(function(key) {
@@ -1513,6 +1768,7 @@ function getCapacity(payload) {
       jornada: jornada,
       total: roundHours(total),
       rituais: roundHours(rituaisPeriodo),
+      overhead: roundHours(overheadPeriodo),
       meses: serie
     });
   } catch (e) {
