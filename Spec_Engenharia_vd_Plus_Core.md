@@ -69,7 +69,7 @@ Regras:
 | `HolidaysModule.html` | Feriados, pontes e recesso por ano |
 | `ReleaseNotesModule.html` | Release notes |
 | `AbsencesModule.html` | Lista e formulário de ausências (`window.AbsencesModule`) |
-| `RitualsModule.html` | Cadastro de ritos e overhead (`window.RitualsModule`) |
+| `RitualsModule.html` | Cadastro de ritos (`window.RitualsModule`) |
 
 ## Abas e navegação
 
@@ -81,7 +81,7 @@ Regras:
 | 🌴 Feriados & Recesso | `view-holidays` | `HolidaysModule` |
 | 📦 Release Notes | `view-releasenotes` | `ReleaseNotesModule` |
 | 🏖️ Ausências | `view-absences` | `AbsencesModule` |
-| ⏱️ Ritos & Overhead | `view-rituals` | `RitualsModule` |
+| ⏱️ Ritos | `view-rituals` | `RitualsModule` |
 
 A aba inicial é **Calendário de Deploy**. Trocar de aba esconde os outros containers e chama `show()` do módulo da aba, quando existir.
 
@@ -161,17 +161,25 @@ Uma linha é o deploy de uma release em uma instância. Cada release da tribo co
 
 ### `Rituais_e_Overhead`
 
-A carga muda quando o time muda os ritos ou o overhead. O cálculo lê a aba no momento da consulta.
+Aba com nome legado. Só há ritos (não há overhead). A carga muda quando o time muda os ritos. O cálculo lê a aba no momento da consulta.
 
 | Coluna | Conteúdo |
 | --- | --- |
 | ID | `RIT-001`, `RIT-002`, ... |
-| Nome | Nome do item |
-| Horas_Semana | Horas por semana útil de cinco dias, por pessoa |
+| Nome | Nome do rito |
+| Horas_Ocorrencia | Horas descontadas em cada ocorrência, por pessoa |
+| Cadencia | `Diaria`, `Quinzenal`, `Mensal`, `Trimestral` ou `Semestral` |
 | Obrigatorio | `Sim` ou `Não`. Só `Sim` entra na conta |
-| Categoria | `Ritual` ou `Overhead` |
 
-Criar / editar / excluir pela aba **Ritos & Overhead**, só `Tech Manager`. Linha legada sem `ID`/`Categoria` é migrada na gestão; sem categoria vale `Ritual`.
+Ocorrências no período filtrado:
+
+- `Diaria`: cada dia útil (segunda a sexta) do intervalo.
+- `Quinzenal`: segunda-feira de cada semana ISO ímpar que intersecta o intervalo.
+- `Mensal`: primeiro dia útil de cada mês tocado pelo intervalo.
+- `Trimestral`: primeiro dia útil de janeiro, abril, julho e outubro tocados pelo intervalo.
+- `Semestral`: primeiro dia útil de janeiro e julho tocados pelo intervalo.
+
+Criar / editar / excluir pela aba **Ritos**, só `Tech Manager`. Planilha com `Horas_Semana`/`Categoria` migra na gestão: `Horas_Ocorrencia = Horas_Semana ÷ 5`, `Cadencia = Diaria`; linhas `Overhead` são descartadas.
 
 ### `Ausencias_e_Eventos`
 
@@ -275,9 +283,8 @@ Para cada pessoa, no período filtrado:
 2. Sai o feriado que se aplica à pessoa e a ponte de feriado nacional ou recesso.
 3. Sai a ausência com `Status` ativo (ou sem status, na linha legada). `Modalidade = Dia` (ou `Horas` vazio na linha legada): cada dia útil do intervalo sai por inteiro. `Modalidade = Hora` (ou `Horas` preenchido na linha legada): desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias. Ausência `Cancelado` não entra.
 4. Dia que sobrou e cai num turno de sustentação dessa pessoa vale zero para entrega. O turno tira 100% do dia.
-5. `Horas_base` é a soma das horas dos dias que ainda restam.
-6. `H_ritos` é a soma de `Horas_Semana` obrigatórias com `Categoria = Ritual`, vezes os dias de entrega da pessoa, dividido por 5. `H_overhead` idem com `Categoria = Overhead`. Sem categoria na linha legada, conta como Ritual.
-7. `Horas_Efetivas = participacao × max(0, Horas_base - H_ritos - H_overhead)`.
+5. Em cada data de ocorrência de rito obrigatório que ainda tem horas, desconta até `Horas_Ocorrencia` daquele rito (vários ritos no mesmo dia somam, sem ultrapassar as horas do dia).
+6. `Horas_Efetivas = participacao ×` soma das horas que restam após o corte de ritos.
 
 O total da squad é a soma das horas efetivas de quem entrou na conta.
 
@@ -289,9 +296,9 @@ Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
 Cidade ou estado novo passa a valer quando existe na pessoa e numa linha de feriado. Não há lista fechada no código. Pessoa sem estado não recebe feriado estadual. Pessoa sem cidade não recebe feriado municipal.
 
-A tela mostra quatro números da squad, convertidos só na interface: dias efetivos do período, o período filtrado, os dias de rito e os dias de overhead descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos**, **Ritos no período (dias)** e **Overhead no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (inclui `jornada`, `rituais` e `overhead`) e não devolve dias, nome nem papel.
+A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (inclui `jornada` e `rituais`) e não devolve dias, nome nem papel.
 
-O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período continua sendo uma conta só em horas, com o corte de ritos e overhead no fim, e é repartido entre os meses na proporção das horas de entrega de cada mês. A soma das barras, em horas, coincide com o total da squad.
+O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período é a soma das horas já após o corte de ritos por ocorrência; a repartição mensal usa as horas restantes de cada dia, então ritos raros pesam só nos meses em que caem. A soma das barras, em horas, coincide com o total da squad.
 
 ### Previsão de cards
 

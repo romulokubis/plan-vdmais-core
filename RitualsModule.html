@@ -2,11 +2,11 @@
 
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
-      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ritos &amp; Overhead</h2>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Carga semanal por pessoa usada na capacidade da squad</p>
+      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ritos</h2>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Cadência e horas por ocorrência — o desconto cai só nas datas em que o rito ocorre no período</p>
     </div>
     <button id="btnCreateRitual" onclick="RitualsModule.openCreate()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
-      <span>+</span> Novo item
+      <span>+</span> Novo rito
     </button>
   </div>
 
@@ -17,8 +17,8 @@
           <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
             <th class="py-3 px-3">ID</th>
             <th class="py-3 px-3">Nome</th>
-            <th class="py-3 px-3 text-center">Categoria</th>
-            <th class="py-3 px-3 text-center">Horas/semana</th>
+            <th class="py-3 px-3 text-center">Cadência</th>
+            <th class="py-3 px-3 text-center">Horas/ocorrência</th>
             <th class="py-3 px-3 text-center">Obrigatório</th>
             <th class="py-3 px-3 text-right">Ações</th>
           </tr>
@@ -39,7 +39,7 @@
     <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
       <div class="flex items-center gap-2">
         <span class="text-xl">⏱️</span>
-        <h3 class="text-base font-bold text-slate-900 dark:text-white" id="ritualModalTitle">Novo item</h3>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white" id="ritualModalTitle">Novo rito</h3>
       </div>
       <button type="button" onclick="RitualsModule.closeModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold focus:outline-none cursor-pointer">&times;</button>
     </div>
@@ -49,20 +49,23 @@
 
       <div>
         <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Nome *</label>
-        <input type="text" id="ritualInputNome" required placeholder="Ex: Daily, Planning, Overhead interno" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+        <input type="text" id="ritualInputNome" required placeholder="Ex: Daily, Planning, Retro" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Categoria *</label>
-          <select id="ritualInputCategoria" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
-            <option value="Ritual">Ritual</option>
-            <option value="Overhead">Overhead</option>
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Cadência *</label>
+          <select id="ritualInputCadencia" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none cursor-pointer">
+            <option value="Diaria">Diária</option>
+            <option value="Quinzenal">Quinzenal</option>
+            <option value="Mensal">Mensal</option>
+            <option value="Trimestral">Trimestral</option>
+            <option value="Semestral">Semestral</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Horas / semana *</label>
-          <input type="number" id="ritualInputHoras" required min="0.25" step="0.25" placeholder="Ex: 1.25" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Horas / ocorrência *</label>
+          <input type="number" id="ritualInputHoras" required min="0.25" step="0.25" placeholder="Ex: 1.5" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-[#008775] focus:outline-none" />
         </div>
       </div>
 
@@ -89,6 +92,14 @@ window.RitualsModule = (function() {
   var state = {
     items: [],
     isManager: false
+  };
+
+  var CADENCIA_LABEL = {
+    Diaria: 'Diária',
+    Quinzenal: 'Quinzenal',
+    Mensal: 'Mensal',
+    Trimestral: 'Trimestral',
+    Semestral: 'Semestral'
   };
 
   function escapeHtml(value) {
@@ -128,10 +139,10 @@ window.RitualsModule = (function() {
 
   function openCreate() {
     if (!state.isManager) return;
-    document.getElementById('ritualModalTitle').textContent = 'Novo item';
+    document.getElementById('ritualModalTitle').textContent = 'Novo rito';
     document.getElementById('ritualInputId').value = '';
     document.getElementById('ritualInputNome').value = '';
-    document.getElementById('ritualInputCategoria').value = 'Ritual';
+    document.getElementById('ritualInputCadencia').value = 'Diaria';
     document.getElementById('ritualInputHoras').value = '';
     document.getElementById('ritualInputObrigatorio').value = 'Sim';
     document.getElementById('ritualModalFeedback').classList.add('hidden');
@@ -145,8 +156,8 @@ window.RitualsModule = (function() {
     document.getElementById('ritualModalTitle').textContent = 'Editar ' + id;
     document.getElementById('ritualInputId').value = id;
     document.getElementById('ritualInputNome').value = found.nome || '';
-    document.getElementById('ritualInputCategoria').value = found.categoria === 'Overhead' ? 'Overhead' : 'Ritual';
-    document.getElementById('ritualInputHoras').value = found.horasSemana || '';
+    document.getElementById('ritualInputCadencia').value = found.cadencia || 'Diaria';
+    document.getElementById('ritualInputHoras').value = found.horasOcorrencia || '';
     document.getElementById('ritualInputObrigatorio').value = found.obrigatorio === 'Sim' ? 'Sim' : 'Não';
     document.getElementById('ritualModalFeedback').classList.add('hidden');
     document.getElementById('ritualModalBackdrop').classList.remove('hidden');
@@ -159,8 +170,8 @@ window.RitualsModule = (function() {
     var payload = {
       id: document.getElementById('ritualInputId').value || '',
       nome: document.getElementById('ritualInputNome').value,
-      categoria: document.getElementById('ritualInputCategoria').value,
-      horasSemana: document.getElementById('ritualInputHoras').value,
+      cadencia: document.getElementById('ritualInputCadencia').value,
+      horasOcorrencia: document.getElementById('ritualInputHoras').value,
       obrigatorio: document.getElementById('ritualInputObrigatorio').value
     };
 
@@ -202,7 +213,7 @@ window.RitualsModule = (function() {
 
   function deleteItem(id) {
     if (!state.isManager) return;
-    if (!confirm('Excluir o item ' + id + '?')) return;
+    if (!confirm('Excluir o rito ' + id + '?')) return;
 
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.items = state.items.filter(function(item) { return item.id !== id; });
@@ -231,16 +242,13 @@ window.RitualsModule = (function() {
     if (!tbody) return;
 
     if (!state.items.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Nenhum item cadastrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Nenhum rito cadastrado.</td></tr>';
       return;
     }
 
     var html = '';
     state.items.forEach(function(item) {
-      var catBadge = item.categoria === 'Overhead'
-        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">Overhead</span>'
-        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">Ritual</span>';
-
+      var cadLabel = CADENCIA_LABEL[item.cadencia] || item.cadencia || '—';
       var actions = '';
       if (state.isManager) {
         actions =
@@ -252,8 +260,8 @@ window.RitualsModule = (function() {
         '<tr class="hover:bg-slate-50/80 dark:hover:bg-slate-900/30">' +
           '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + escapeHtml(item.id) + '</td>' +
           '<td class="py-3 px-3 text-xs font-medium text-slate-900 dark:text-white">' + escapeHtml(item.nome) + '</td>' +
-          '<td class="py-3 px-3 text-center">' + catBadge + '</td>' +
-          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(item.horasSemana) + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(cadLabel) + '</td>' +
+          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(item.horasOcorrencia) + '</td>' +
           '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' + escapeHtml(item.obrigatorio) + '</td>' +
           '<td class="py-3 px-3 text-right whitespace-nowrap">' + actions + '</td>' +
         '</tr>';

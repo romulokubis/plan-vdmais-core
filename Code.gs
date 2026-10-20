@@ -676,7 +676,14 @@ function cancelAbsence(id) {
   }
 }
 
-var RITUAL_HEADERS = ['ID', 'Nome', 'Horas_Semana', 'Obrigatorio', 'Categoria'];
+var RITUAL_HEADERS = ['ID', 'Nome', 'Horas_Ocorrencia', 'Cadencia', 'Obrigatorio'];
+var RITUAL_CADENCIAS = {
+  diaria: 'Diaria',
+  quinzenal: 'Quinzenal',
+  mensal: 'Mensal',
+  trimestral: 'Trimestral',
+  semestral: 'Semestral'
+};
 
 function nextRitualId(sheet) {
   var data = sheet.getDataRange().getDisplayValues();
@@ -690,24 +697,100 @@ function nextRitualId(sheet) {
   return 'RIT-' + padIdNumber(max + 1);
 }
 
-function parseRitualCategoria(value) {
-  var key = normalizeHeaderKey(value);
-  if (key === 'overhead') return 'Overhead';
-  return 'Ritual';
-}
-
 function parseRitualObrigatorio(value) {
   return normalizePlace(value) === 'sim' ? 'Sim' : 'Nao';
 }
 
-function isLegacyRitualsSheet(headers, firstDataRow) {
-  var h0 = normalizeHeaderKey(headers[0]);
-  if (h0 === 'id') return false;
-  if (h0 === 'ritual' || h0 === 'nome') return true;
-  if (firstDataRow && !String(firstDataRow[0] || '').match(/^RIT-/i) && String(firstDataRow[0] || '').trim()) {
-    return true;
+function parseRitualCadencia(value) {
+  var key = normalizeHeaderKey(value);
+  if (RITUAL_CADENCIAS[key]) return RITUAL_CADENCIAS[key];
+  return '';
+}
+
+function ritualHeaderMap(headers) {
+  var map = {};
+  headers.forEach(function(h, idx) {
+    map[normalizeHeaderKey(h)] = idx;
+  });
+  return map;
+}
+
+function needsRitualCadenciaMigration(headers) {
+  var map = ritualHeaderMap(headers);
+  return map.cadencia === undefined || map.horas_ocorrencia === undefined;
+}
+
+function firstWeekdayOfMonth(year, month) {
+  var day = new Date(year, month, 1);
+  while (day.getDay() === 0 || day.getDay() === 6) {
+    day = addDays(day, 1);
   }
-  return false;
+  return day;
+}
+
+function isoWeekNumber(date) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  var week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+}
+
+function mondayOfDate(date) {
+  var day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var dow = day.getDay();
+  var offset = dow === 0 ? -6 : 1 - dow;
+  return addDays(day, offset);
+}
+
+/**
+ * Datas de ocorrência do rito dentro de [start, end] (inclusive).
+ * Quinzenal: segunda de semanas ISO ímpares.
+ * Mensal/Trimestral/Semestral: primeiro dia útil do mês-alvo no intervalo.
+ */
+function ritualOccurrenceDates(cadencia, start, end) {
+  var dates = [];
+  var seen = {};
+  function pushDate(dateObj) {
+    if (!dateObj) return;
+    if (dateObj.getTime() < start.getTime() || dateObj.getTime() > end.getTime()) return;
+    var key = formatSheetDate(dateObj);
+    if (seen[key]) return;
+    seen[key] = true;
+    dates.push(new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+  }
+
+  if (cadencia === 'Diaria') {
+    var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    while (cursor.getTime() <= end.getTime()) {
+      var dow = cursor.getDay();
+      if (dow !== 0 && dow !== 6) pushDate(cursor);
+      cursor = addDays(cursor, 1);
+    }
+    return dates;
+  }
+
+  if (cadencia === 'Quinzenal') {
+    var weekCursor = mondayOfDate(start);
+    while (weekCursor.getTime() <= end.getTime()) {
+      if (isoWeekNumber(weekCursor) % 2 === 1) pushDate(weekCursor);
+      weekCursor = addDays(weekCursor, 7);
+    }
+    return dates;
+  }
+
+  var month = new Date(start.getFullYear(), start.getMonth(), 1);
+  var endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (month.getTime() <= endMonth.getTime()) {
+    var m = month.getMonth() + 1;
+    var include = false;
+    if (cadencia === 'Mensal') include = true;
+    if (cadencia === 'Trimestral' && (m === 1 || m === 4 || m === 7 || m === 10)) include = true;
+    if (cadencia === 'Semestral' && (m === 1 || m === 7)) include = true;
+    if (include) pushDate(firstWeekdayOfMonth(month.getFullYear(), month.getMonth()));
+    month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+  }
+  return dates;
 }
 
 function ensureRitualsSheet(ss) {
@@ -718,33 +801,67 @@ function ensureRitualsSheet(ss) {
     return sheet;
   }
 
-  var lastRow = sheet.getLastRow();
   var lastCol = Math.max(sheet.getLastColumn(), 1);
   var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
-  var firstData = lastRow > 1 ? sheet.getRange(2, 1, 1, lastCol).getDisplayValues()[0] : null;
+  if (!needsRitualCadenciaMigration(headers)) return sheet;
 
-  if (isLegacyRitualsSheet(headers, firstData)) {
-    var legacy = sheet.getDataRange().getDisplayValues();
-    var migrated = [RITUAL_HEADERS];
-    for (var i = 1; i < legacy.length; i++) {
-      var row = legacy[i];
-      var nome = String(row[0] || '').trim();
-      if (!nome) continue;
-      var cat = row.length > 3 ? parseRitualCategoria(row[3]) : 'Ritual';
-      migrated.push([
-        'RIT-' + padIdNumber(i),
-        nome,
-        String(row[1] || '').trim(),
-        parseRitualObrigatorio(row[2]),
-        cat
-      ]);
+  var legacy = sheet.getDataRange().getDisplayValues();
+  var map = ritualHeaderMap(legacy[0] || []);
+  var migrated = [RITUAL_HEADERS];
+  var seq = 0;
+
+  for (var i = 1; i < legacy.length; i++) {
+    var row = legacy[i];
+    var id = map.id !== undefined ? String(row[map.id] || '').trim() : '';
+    var nomeIdx = map.nome !== undefined ? map.nome : (map.ritual !== undefined ? map.ritual : 0);
+    var nome = String(row[nomeIdx] || '').trim();
+    if (!nome) continue;
+
+    var catIdx = map.categoria;
+    if (catIdx !== undefined && parseRitualCategoriaLegacy(row[catIdx]) === 'Overhead') {
+      continue;
     }
-    sheet.clear();
-    sheet.getRange(1, 1, migrated.length, RITUAL_HEADERS.length).setValues(migrated);
-    return sheet;
+
+    var horasSemanaIdx = map.horas_semana;
+    var horasOcIdx = map.horas_ocorrencia;
+    var cadIdx = map.cadencia;
+    var obrIdx = map.obrigatorio !== undefined ? map.obrigatorio : 2;
+
+    var horasOc = '';
+    var cadencia = parseRitualCadencia(cadIdx !== undefined ? row[cadIdx] : '');
+    if (horasOcIdx !== undefined && String(row[horasOcIdx] || '').trim()) {
+      horasOc = String(row[horasOcIdx]).trim();
+    } else if (horasSemanaIdx !== undefined && String(row[horasSemanaIdx] || '').trim()) {
+      var weekly = parseFloat(String(row[horasSemanaIdx]).replace(',', '.'));
+      if (!isNaN(weekly) && weekly > 0) {
+        horasOc = String(Math.round((weekly / 5) * 100) / 100);
+        if (!cadencia) cadencia = 'Diaria';
+      }
+    }
+    if (!cadencia) cadencia = 'Diaria';
+    if (!horasOc) continue;
+
+    seq += 1;
+    if (!id.match(/^RIT-/i)) id = 'RIT-' + padIdNumber(seq);
+
+    migrated.push([
+      id,
+      nome,
+      horasOc,
+      cadencia,
+      parseRitualObrigatorio(row[obrIdx]) === 'Sim' ? 'Sim' : 'Não'
+    ]);
   }
 
+  sheet.clear();
+  sheet.getRange(1, 1, migrated.length, RITUAL_HEADERS.length).setValues(migrated);
   return sheet;
+}
+
+function parseRitualCategoriaLegacy(value) {
+  var key = normalizeHeaderKey(value);
+  if (key === 'overhead') return 'Overhead';
+  return 'Ritual';
 }
 
 function readRitualRow(row) {
@@ -753,49 +870,73 @@ function readRitualRow(row) {
     return {
       id: c0,
       nome: String(row[1] || '').trim(),
-      horasSemana: String(row[2] || '').trim(),
-      obrigatorio: parseRitualObrigatorio(row[3]),
-      categoria: parseRitualCategoria(row[4])
+      horasOcorrencia: String(row[2] || '').trim(),
+      cadencia: parseRitualCadencia(row[3]) || 'Diaria',
+      obrigatorio: parseRitualObrigatorio(row[4]) === 'Sim' ? 'Sim' : 'Não'
     };
   }
 
+  var weekly = parseFloat(String(row[1] || '').replace(',', '.'));
+  var horasOc = !isNaN(weekly) && weekly > 0 ? String(Math.round((weekly / 5) * 100) / 100) : '';
   return {
     id: '',
     nome: c0,
-    horasSemana: String(row[1] || '').trim(),
-    obrigatorio: parseRitualObrigatorio(row[2]),
-    categoria: row.length > 3 ? parseRitualCategoria(row[3]) : 'Ritual'
+    horasOcorrencia: horasOc,
+    cadencia: 'Diaria',
+    obrigatorio: parseRitualObrigatorio(row[2]) === 'Sim' ? 'Sim' : 'Não'
   };
 }
 
-function sumWeeklyByCategoria(ss) {
-  var weekly = { Ritual: 0, Overhead: 0 };
+function loadActiveRituals(ss) {
+  var items = [];
   sheetRows(ss, 'Rituais_e_Overhead').forEach(function(row) {
     var item = readRitualRow(row);
-    if (item.obrigatorio !== 'Sim') return;
-    var hours = parseFloat(String(item.horasSemana || '').replace(',', '.'));
+    if (!item.nome || item.obrigatorio !== 'Sim') return;
+    var hours = parseFloat(String(item.horasOcorrencia || '').replace(',', '.'));
     if (isNaN(hours) || hours <= 0) return;
-    weekly[item.categoria] += hours;
+    var cadencia = parseRitualCadencia(item.cadencia) || 'Diaria';
+    items.push({
+      nome: item.nome,
+      horasOcorrencia: hours,
+      cadencia: cadencia
+    });
   });
-  return weekly;
+  return items;
+}
+
+function applyRitualsToDayHours(dayHours, rituals, start, end) {
+  var cutTotal = 0;
+  rituals.forEach(function(ritual) {
+    ritualOccurrenceDates(ritual.cadencia, start, end).forEach(function(dateObj) {
+      var key = formatSheetDate(dateObj);
+      if (dayHours[key] === undefined || dayHours[key] <= 0) return;
+      var cut = Math.min(dayHours[key], ritual.horasOcorrencia);
+      dayHours[key] -= cut;
+      cutTotal += cut;
+    });
+  });
+  return cutTotal;
 }
 
 function validateRitualPayload(payload) {
   if (!payload) return { ok: false, message: 'Dados não informados.' };
   var nome = String(payload.nome || '').trim();
   if (!nome) return { ok: false, message: 'Informe o nome.' };
-  var hours = parseFloat(String(payload.horasSemana || '').replace(',', '.'));
+  var hours = parseFloat(String(payload.horasOcorrencia || '').replace(',', '.'));
   if (isNaN(hours) || hours <= 0) {
-    return { ok: false, message: 'Informe horas por semana maiores que zero.' };
+    return { ok: false, message: 'Informe horas por ocorrência maiores que zero.' };
+  }
+  var cadencia = parseRitualCadencia(payload.cadencia);
+  if (!cadencia) {
+    return { ok: false, message: 'Informe a cadência (Diaria, Quinzenal, Mensal, Trimestral ou Semestral).' };
   }
   var obrigatorio = parseRitualObrigatorio(payload.obrigatorio);
-  var categoria = parseRitualCategoria(payload.categoria);
   return {
     ok: true,
     nome: nome,
-    horasSemana: String(hours),
-    obrigatorio: obrigatorio === 'Sim' ? 'Sim' : 'Não',
-    categoria: categoria
+    horasOcorrencia: String(hours),
+    cadencia: cadencia,
+    obrigatorio: obrigatorio === 'Sim' ? 'Sim' : 'Não'
   };
 }
 
@@ -813,7 +954,6 @@ function getRituals() {
       items.push(item);
     }
     items.sort(function(a, b) {
-      if (a.categoria !== b.categoria) return a.categoria === 'Ritual' ? -1 : 1;
       return String(a.nome).localeCompare(String(b.nome), 'pt-BR');
     });
     return JSON.stringify({ success: true, data: items });
@@ -828,7 +968,7 @@ function saveRitual(payload) {
     if (!actor.authorized || !actor.isManager) {
       return JSON.stringify({
         success: false,
-        message: 'Acesso negado: apenas o Tech Manager pode cadastrar ritos e overhead.'
+        message: 'Acesso negado: apenas o Tech Manager pode cadastrar ritos.'
       });
     }
     var validated = validateRitualPayload(payload);
@@ -841,11 +981,11 @@ function saveRitual(payload) {
     sheet.appendRow([
       id,
       validated.nome,
-      validated.horasSemana,
-      validated.obrigatorio,
-      validated.categoria
+      validated.horasOcorrencia,
+      validated.cadencia,
+      validated.obrigatorio
     ]);
-    return JSON.stringify({ success: true, message: 'Item cadastrado!', id: id });
+    return JSON.stringify({ success: true, message: 'Rito cadastrado!', id: id });
   } catch (e) {
     return JSON.stringify({ success: false, message: 'Erro ao salvar: ' + e.toString() });
   }
@@ -857,7 +997,7 @@ function updateRitual(payload) {
     if (!actor.authorized || !actor.isManager) {
       return JSON.stringify({
         success: false,
-        message: 'Acesso negado: apenas o Tech Manager pode alterar ritos e overhead.'
+        message: 'Acesso negado: apenas o Tech Manager pode alterar ritos.'
       });
     }
     if (!payload || !payload.id) {
@@ -879,16 +1019,16 @@ function updateRitual(payload) {
       }
     }
     if (rowIndex === -1) {
-      return JSON.stringify({ success: false, message: 'Item ' + payload.id + ' não encontrado.' });
+      return JSON.stringify({ success: false, message: 'Rito ' + payload.id + ' não encontrado.' });
     }
     sheet.getRange(rowIndex, 1, 1, RITUAL_HEADERS.length).setValues([[
       payload.id,
       validated.nome,
-      validated.horasSemana,
-      validated.obrigatorio,
-      validated.categoria
+      validated.horasOcorrencia,
+      validated.cadencia,
+      validated.obrigatorio
     ]]);
-    return JSON.stringify({ success: true, message: 'Item ' + payload.id + ' atualizado!' });
+    return JSON.stringify({ success: true, message: 'Rito ' + payload.id + ' atualizado!' });
   } catch (e) {
     return JSON.stringify({ success: false, message: 'Erro ao atualizar: ' + e.toString() });
   }
@@ -900,7 +1040,7 @@ function deleteRitual(id) {
     if (!actor.authorized || !actor.isManager) {
       return JSON.stringify({
         success: false,
-        message: 'Acesso negado: apenas o Tech Manager pode excluir ritos e overhead.'
+        message: 'Acesso negado: apenas o Tech Manager pode excluir ritos.'
       });
     }
     if (!id) return JSON.stringify({ success: false, message: 'ID não informado.' });
@@ -918,10 +1058,10 @@ function deleteRitual(id) {
       }
     }
     if (rowIndex === -1) {
-      return JSON.stringify({ success: false, message: 'Item ' + id + ' não encontrado.' });
+      return JSON.stringify({ success: false, message: 'Rito ' + id + ' não encontrado.' });
     }
     sheet.deleteRow(rowIndex);
-    return JSON.stringify({ success: true, message: 'Item ' + id + ' excluído!' });
+    return JSON.stringify({ success: true, message: 'Rito ' + id + ' excluído!' });
   } catch (e) {
     return JSON.stringify({ success: false, message: 'Erro ao excluir: ' + e.toString() });
   }
@@ -1627,9 +1767,8 @@ function getCapacity(payload) {
 
     var calendar = buildCapacityCalendar(sheetRows(ss, 'Feriados_e_Pontes'));
 
-    var weeklyByCat = sumWeeklyByCategoria(ss);
-    var weeklyRituals = weeklyByCat.Ritual;
-    var weeklyOverhead = weeklyByCat.Overhead;
+    ensureRitualsSheet(ss);
+    var rituals = loadActiveRituals(ss);
 
     var absences = [];
     sheetRows(ss, 'Ausencias_e_Eventos').forEach(function(row) {
@@ -1663,7 +1802,6 @@ function getCapacity(payload) {
     var jornada = 7.5;
     var total = 0;
     var rituaisPeriodo = 0;
-    var overheadPeriodo = 0;
     var months = {};
     var monthCursor = new Date(start.getFullYear(), start.getMonth(), 1);
     var monthEnd = new Date(end.getFullYear(), end.getMonth(), 1);
@@ -1673,8 +1811,6 @@ function getCapacity(payload) {
     }
 
     people.forEach(function(person) {
-      var entrega = 0;
-      var diasEntrega = 0;
       var dayHours = {};
 
       var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
@@ -1721,22 +1857,20 @@ function getCapacity(payload) {
         if (!day || dayHours[key] <= 0) return;
         if (personOnSustainment(shifts, person.email, day.getTime())) {
           dayHours[key] = 0;
-          return;
         }
-        entrega += dayHours[key];
-        diasEntrega += 1;
       });
 
-      var rituais = weeklyRituals * diasEntrega / 5;
-      var overhead = weeklyOverhead * diasEntrega / 5;
-      var desconto = rituais + overhead;
-      var efetivas = person.participacao * Math.max(0, entrega - desconto);
+      var ritualCut = applyRitualsToDayHours(dayHours, rituals, start, end);
+      rituaisPeriodo += person.participacao * ritualCut;
+
+      var entrega = 0;
+      sortedDateKeys(dayHours).forEach(function(key) {
+        if (dayHours[key] <= 0) return;
+        entrega += dayHours[key];
+      });
+
+      var efetivas = person.participacao * entrega;
       total += efetivas;
-      var rituaisAplicados = Math.min(rituais, entrega);
-      var restoAposRitos = Math.max(0, entrega - rituaisAplicados);
-      var overheadAplicados = Math.min(overhead, restoAposRitos);
-      rituaisPeriodo += person.participacao * rituaisAplicados;
-      overheadPeriodo += person.participacao * overheadAplicados;
 
       if (efetivas <= 0 || entrega <= 0) return;
       sortedDateKeys(dayHours).forEach(function(key) {
@@ -1768,7 +1902,6 @@ function getCapacity(payload) {
       jornada: jornada,
       total: roundHours(total),
       rituais: roundHours(rituaisPeriodo),
-      overhead: roundHours(overheadPeriodo),
       meses: serie
     });
   } catch (e) {

@@ -1,42 +1,56 @@
-# Feature: Ritos e Overhead separados
+# Feature: Ritos por cadência e ocorrência
 
 | Campo | Valor |
 | --- | --- |
 | Status | `implementada` |
-| Spec de produto | `Rituais_e_Overhead`, Capacidade, aba Ritos & Overhead |
+| Spec de produto | `Rituais_e_Overhead`, Capacidade, aba Ritos |
 | Módulos | `RitualsModule.html`, `CapacityModule.html`; CRUD e `getCapacity` em `Code.gs` |
-| Aba planilha | `Rituais_e_Overhead` |
+| Aba planilha | `Rituais_e_Overhead` (nome legado; sem categoria Overhead) |
 
 ## Objetivo
 
-Separar tempo de **ritos** e **overhead** na capacidade (mesmo desconto, cards distintos) e permitir cadastrar/editar linhas pela Web App.
+Modelar ritos por **cadência** e **horas por ocorrência**, para que o desconto na capacidade caia só nas datas em que o rito ocorre no período filtrado. Overhead sai do produto (UI, cálculo e gestão).
 
 ## Dados
 
 | Coluna | Conteúdo |
 | --- | --- |
 | ID | `RIT-001`, ... |
-| Nome | Nome do item |
-| Horas_Semana | Horas por semana útil de 5 dias, por pessoa |
+| Nome | Nome do rito |
+| Horas_Ocorrencia | Horas descontadas em cada ocorrência, por pessoa |
+| Cadencia | `Diaria`, `Quinzenal`, `Mensal`, `Trimestral` ou `Semestral` |
 | Obrigatorio | `Sim` ou `Não`. Só `Sim` entra na conta |
-| Categoria | `Ritual` ou `Overhead` |
 
-Linha legada sem `ID`/`Categoria`: migra na primeira gravação/leitura de gestão; sem categoria vale `Ritual`.
+### Ocorrências no período filtrado
+
+| Cadência | Quando ocorre |
+| --- | --- |
+| Diaria | Cada dia útil (seg–sex) do intervalo |
+| Quinzenal | Segunda-feira de cada semana ISO ímpar que intersecta o intervalo |
+| Mensal | Primeiro dia útil de cada mês tocado pelo intervalo |
+| Trimestral | Primeiro dia útil de jan, abr, jul e out tocados pelo intervalo |
+| Semestral | Primeiro dia útil de jan e jul tocados pelo intervalo |
+
+Migração: planilha com `Horas_Semana`/`Categoria` vira `Horas_Ocorrencia = Horas_Semana ÷ 5` e `Cadencia = Diaria`. Linhas `Categoria = Overhead` são descartadas na migração.
 
 ## Capacidade
 
-- `H_ritos` e `H_overhead` usam a mesma fórmula (`Horas_Semana × diasEntrega ÷ 5`), cada um só com a própria categoria e `Obrigatorio = Sim`.
-- `Horas_Efetivas = participação × max(0, Horas_base − H_ritos − H_overhead)`.
-- UI: dias efetivos, período, ritos (dias), overhead (dias). API devolve `rituais` e `overhead` em horas.
+Ordem por pessoa no período: dias úteis → feriados/pontes → ausências → Batman → ritos nas datas de ocorrência → soma restante × participação.
+
+- Em cada data de ocorrência com horas restantes, desconta até `Horas_Ocorrencia`.
+- `Horas_Efetivas = participação × horas restantes após ritos`.
+- UI: dias efetivos, período, ritos (dias). API devolve `rituais` em horas (sem `overhead`).
+- O gráfico mensal usa as horas já após o corte de ritos, então ritos raros pesam só nos meses em que caem.
 
 ## Tela de gestão
 
-- Aba **Ritos & Overhead**: lista + criar/editar/excluir.
+- Aba **Ritos**: lista + criar/editar/excluir.
 - Quem grava: `Tech Manager` (`isManager`).
 - Lista visível a qualquer usuário autenticado da app.
 
 ## Critérios de aceite
 
-- [x] Coluna `Categoria` e IDs na planilha (com migração legada)
-- [x] Capacidade separa ritos e overhead na conta e na UI
+- [x] Schema `Horas_Ocorrencia` + `Cadencia` (com migração a partir de `Horas_Semana`)
+- [x] Overhead removido da UI, do CRUD e de `getCapacity`
+- [x] Capacidade aplica ritos por ocorrência no período
 - [x] CRUD pela tela, só Tech Manager
