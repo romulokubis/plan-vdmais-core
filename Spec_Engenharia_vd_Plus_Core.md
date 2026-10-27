@@ -13,7 +13,7 @@ Fuso horário: `America/Sao_Paulo`. A semana começa na segunda-feira. Datas sã
 
 ## Arquitetura
 
-O projeto Apps Script é vinculado à planilha e usa `SpreadsheetApp.getActiveSpreadsheet()`. Os escopos OAuth ficam explícitos em `appsscript.json` (`spreadsheets.currentonly`, `userinfo.email`, `script.external_request`). A Web App roda como `USER_ACCESSING` no domínio; na primeira abertura (ou após mudança de escopo), o usuário precisa autorizar o acesso à planilha.
+O projeto Apps Script é vinculado à planilha e usa `SpreadsheetApp.getActiveSpreadsheet()` (via `getActiveDb()`). Os escopos OAuth ficam explícitos em `appsscript.json` (`spreadsheets.currentonly`, `userinfo.email`, `script.external_request`). A Web App roda como `USER_DEPLOYING` com acesso `DOMAIN` (ADR 003): a planilha é acessada na identidade do implantador; o e-mail do visitante para RBAC vem de `Session.getActiveUser()`.
 
 `Index.html` é o shell: cabeçalho, abas, containers e o `AppShell`. Cada módulo traz o próprio HTML, CSS e JavaScript e entra por `include()`.
 
