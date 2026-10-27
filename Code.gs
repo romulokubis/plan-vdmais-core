@@ -309,7 +309,7 @@ function ensureAbsencesSheet(ss) {
 
   if (missing.length) {
     var startCol = lastCol + 1;
-    sheet.getRange(1, startCol, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, startCol, 1, startCol + missing.length - 1).setValues([missing]);
   }
 
   return sheet;
@@ -910,7 +910,14 @@ function ensureRitualsSheet(ss) {
   }
 
   sheet.clear();
-  sheet.getRange(1, 1, migrated.length, RITUAL_HEADERS.length).setValues(migrated);
+  if (migrated.length) {
+    var width = migrated[0].length;
+    for (var r = 1; r < migrated.length; r++) {
+      while (migrated[r].length < width) migrated[r].push('');
+      if (migrated[r].length > width) migrated[r] = migrated[r].slice(0, width);
+    }
+    sheet.getRange(1, 1, migrated.length, width).setValues(migrated);
+  }
   return sheet;
 }
 
@@ -1828,22 +1835,31 @@ function resolveCapacityParticipation(papel, participacaoRaw, ativoRaw) {
 }
 
 function ensureIntegrantesCapacityHeaders(ss) {
-  var sheet = ss.getSheetByName('Integrantes_Squad');
-  if (!sheet) return;
-  var lastCol = Math.max(sheet.getLastColumn(), 1);
-  var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
-  var map = ritualHeaderMap(headers);
-  var toAdd = [];
-  if (map.participacao_capacidade === undefined) toAdd.push('Participacao_Capacidade');
-  if (map.ativo_capacidade === undefined) toAdd.push('Ativo_Capacidade');
-  if (!toAdd.length) return;
-  sheet.getRange(1, lastCol + 1, 1, lastCol + toAdd.length).setValues([toAdd]);
+  try {
+    var sheet = ss.getSheetByName('Integrantes_Squad');
+    if (!sheet) return;
+    var lastCol = Math.max(sheet.getLastColumn(), 1);
+    var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+    var map = ritualHeaderMap(headers);
+    var nextCol = lastCol + 1;
+    if (map.participacao_capacidade === undefined) {
+      sheet.getRange(1, nextCol).setValue('Participacao_Capacidade');
+      nextCol += 1;
+    }
+    if (map.ativo_capacidade === undefined) {
+      sheet.getRange(1, nextCol).setValue('Ativo_Capacidade');
+    }
+  } catch (e) {
+    Logger.log('[Capacity] Não foi possível garantir headers de participação: ' + e.toString());
+  }
 }
 
 function loadCapacityPeople(ss) {
   var sheet = ss.getSheetByName('Integrantes_Squad');
   if (!sheet) return [];
   ensureIntegrantesCapacityHeaders(ss);
+  sheet = ss.getSheetByName('Integrantes_Squad');
+  if (!sheet) return [];
   var data = sheet.getDataRange().getDisplayValues();
   if (!data || data.length <= 1) return [];
   var map = ritualHeaderMap(data[0] || []);
@@ -2008,7 +2024,11 @@ function getCapacity(payload) {
 
     var calendar = buildCapacityCalendar(sheetRows(ss, 'Feriados_e_Pontes'));
 
-    ensureRitualsSheet(ss);
+    try {
+      ensureRitualsSheet(ss);
+    } catch (ritualEnsureErr) {
+      Logger.log('[Capacity] ensureRitualsSheet: ' + ritualEnsureErr.toString());
+    }
     var rituals = loadActiveRituals(ss);
 
     var absences = [];
