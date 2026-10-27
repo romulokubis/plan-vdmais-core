@@ -16,6 +16,28 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+/**
+ * Planilha vinculada. Centraliza erros de OAuth com mensagem acionável.
+ */
+function getActiveDb() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      throw new Error('Planilha vinculada não encontrada.');
+    }
+    return ss;
+  } catch (e) {
+    var msg = String(e.message || e.toString());
+    if (/permiss|autoriz|oauth|spreadsheets\.currentonly|spreadsheets/i.test(msg)) {
+      throw new Error(
+        'Sem permissão de planilha neste contexto. A Web App deve rodar como USER_DEPLOYING ' +
+        '(ADR 003) e a conta do deploy precisa ter acesso à planilha. Detalhe: ' + msg
+      );
+    }
+    throw e;
+  }
+}
+
 function getUserEmail() {
   try {
     return Session.getActiveUser().getEmail();
@@ -33,7 +55,7 @@ function isUserAuthorized() {
     var userEmail = Session.getActiveUser().getEmail();
     if (!userEmail) return false;
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return false;
 
     var sheet = ss.getSheetByName('Integrantes_Squad');
@@ -93,7 +115,7 @@ function findSquadMemberByEmail(email) {
   var target = String(email || '').trim().toLowerCase();
   if (!target) return null;
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getActiveDb();
   if (!ss) return null;
 
   var rows = sheetRows(ss, 'Integrantes_Squad');
@@ -413,7 +435,7 @@ function validateAbsencePayload(payload) {
  */
 function getSquadMembers() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     var members = [];
@@ -443,7 +465,7 @@ function getSquadMembers() {
  */
 function getAbsences() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     ensureAbsencesSheet(ss);
@@ -503,7 +525,7 @@ function saveAbsence(payload) {
       });
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     var sheet = ensureAbsencesSheet(ss);
@@ -561,7 +583,7 @@ function updateAbsence(payload) {
       });
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     var sheet = ensureAbsencesSheet(ss);
@@ -637,7 +659,7 @@ function cancelAbsence(id) {
 
     if (!id) return JSON.stringify({ success: false, message: 'ID da ausência não informado.' });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     var sheet = ensureAbsencesSheet(ss);
@@ -1016,7 +1038,7 @@ function validateRitualPayload(payload) {
 
 function getRituals() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     var sheet = ensureRitualsSheet(ss);
     var data = sheet.getDataRange().getDisplayValues();
@@ -1047,7 +1069,7 @@ function saveRitual(payload) {
     var validated = validateRitualPayload(payload);
     if (!validated.ok) return JSON.stringify({ success: false, message: validated.message });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     var sheet = ensureRitualsSheet(ss);
     var id = nextRitualId(sheet);
@@ -1080,7 +1102,7 @@ function updateRitual(payload) {
     var validated = validateRitualPayload(payload);
     if (!validated.ok) return JSON.stringify({ success: false, message: validated.message });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     var sheet = ensureRitualsSheet(ss);
     var data = sheet.getDataRange().getDisplayValues();
@@ -1120,7 +1142,7 @@ function deleteRitual(id) {
     }
     if (!id) return JSON.stringify({ success: false, message: 'ID não informado.' });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     var sheet = ensureRitualsSheet(ss);
     var data = sheet.getDataRange().getDisplayValues();
@@ -1178,7 +1200,7 @@ function loadFeriadosForValidation(dateObj) {
  */
 function getEscalaBatman() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) {
       return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     }
@@ -1309,7 +1331,7 @@ function regenerateBatmanSchedule(payload) {
     var weeks = parseInt(payload && payload.duracaoSemanas, 10);
     if (isNaN(weeks) || weeks < 1) weeks = 1;
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     var sheet = ss.getSheetByName('Escala_Sustentacao');
     if (!sheet) {
@@ -1374,7 +1396,7 @@ function regenerateBatmanSchedule(payload) {
  */
 function getDeploysScheduled() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha não encontrada.' });
     
     var sheet = ss.getSheetByName('Planejamento_Deploys');
@@ -1424,7 +1446,7 @@ function saveDeploySchedule(payload) {
       });
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     
     var sheet = ss.getSheetByName('Planejamento_Deploys');
@@ -1484,7 +1506,7 @@ function updateDeploySchedule(payload) {
       return JSON.stringify({ success: false, message: 'ID da release não informado.' });
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     
     var sheet = ss.getSheetByName('Planejamento_Deploys');
@@ -1551,7 +1573,7 @@ function deleteDeploySchedule(id) {
 
     if (!id) return JSON.stringify({ success: false, message: 'ID da release não informado.' });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     
     var sheet = ss.getSheetByName('Planejamento_Deploys');
@@ -1627,7 +1649,7 @@ function getFeriados(targetYear) {
     var currentYear = new Date().getFullYear();
     var yearToFilter = targetYear ? parseInt(targetYear, 10) : currentYear;
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     
     var sheets = ss.getSheets();
@@ -2017,7 +2039,7 @@ function getCapacity(payload) {
       return JSON.stringify({ success: false, message: 'O período máximo da consulta é de 370 dias.' });
     }
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
     var people = loadCapacityPeople(ss);
