@@ -37,6 +37,8 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-200">
 
+  <?!= include('LoadingOverlay'); ?>
+
   <!-- Container Principal do Shell -->
   <div class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col gap-6">
 
@@ -109,6 +111,14 @@
         papel: ''
       };
 
+      function loadingStart(message) {
+        if (window.VdLoading) window.VdLoading.start(message);
+      }
+
+      function loadingDone() {
+        if (window.VdLoading) window.VdLoading.done();
+      }
+
       function fetchPermissions() {
         if (typeof google === 'undefined' || !google.script || !google.script.run) {
           permissions.canEdit = true;
@@ -116,6 +126,7 @@
           return;
         }
 
+        loadingStart('Preparando sua sessão…');
         google.script.run
           .withSuccessHandler(function(responseStr) {
             try {
@@ -128,12 +139,17 @@
                 window.dispatchEvent(new CustomEvent('vdCore:permissionsLoaded', { detail: permissions }));
               }
             } catch(e) {}
+            loadingDone();
+          })
+          .withFailureHandler(function() {
+            loadingDone();
           })
           .getUserPermissions();
       }
 
       function switchTab(tabId) {
         currentTab = tabId;
+        if (window.VdLoading) window.VdLoading.reset();
 
         document.querySelectorAll('.tab-view').forEach(function(el) {
           el.classList.add('hidden');
@@ -193,7 +209,12 @@
         switchTab: switchTab,
         canEdit: function() { return permissions.canEdit; },
         isManager: function() { return permissions.isManager; },
-        getUserEmail: function() { return permissions.email; }
+        getUserEmail: function() { return permissions.email; },
+        loading: {
+          start: loadingStart,
+          done: loadingDone,
+          reset: function() { if (window.VdLoading) window.VdLoading.reset(); }
+        }
       };
     })();
   </script>

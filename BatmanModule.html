@@ -216,6 +216,16 @@ window.BatmanModule = (function() {
     container.innerHTML = html;
   }
 
+  function loadingStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function loadingDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function fetchData() {
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.schedules = [
@@ -228,6 +238,7 @@ window.BatmanModule = (function() {
       return;
     }
 
+    loadingStart('Carregando escala…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -245,10 +256,12 @@ window.BatmanModule = (function() {
           var card = document.getElementById('activeBatmanCard');
           if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2">Erro no parse: ' + e.toString() + '</p>';
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         var card = document.getElementById('activeBatmanCard');
         if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-bold">Falha no Apps Script: ' + err.message + '</p>';
+        loadingDone();
       })
       .getEscalaBatman();
   }
@@ -305,6 +318,7 @@ window.BatmanModule = (function() {
       return;
     }
 
+    loadingStart('Gerando turnos…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
@@ -312,13 +326,18 @@ window.BatmanModule = (function() {
           var resp = JSON.parse(responseStr);
           if (resp.success) {
             closeGenerate();
+            loadingDone();
             fetchData();
-          } else if (feedback) {
-            feedback.classList.remove('hidden');
-            feedback.className = 'text-xs py-2 px-3 rounded-lg bg-red-50 text-red-700';
-            feedback.textContent = resp.message || 'Não foi possível gerar.';
+          } else {
+            loadingDone();
+            if (feedback) {
+              feedback.classList.remove('hidden');
+              feedback.className = 'text-xs py-2 px-3 rounded-lg bg-red-50 text-red-700';
+              feedback.textContent = resp.message || 'Não foi possível gerar.';
+            }
           }
         } catch (e) {
+          loadingDone();
           if (feedback) {
             feedback.classList.remove('hidden');
             feedback.className = 'text-xs py-2 px-3 rounded-lg bg-red-50 text-red-700';
@@ -327,6 +346,7 @@ window.BatmanModule = (function() {
         }
       })
       .withFailureHandler(function(err) {
+        loadingDone();
         if (btn) { btn.disabled = false; btn.textContent = 'Gerar'; }
         if (feedback) {
           feedback.classList.remove('hidden');

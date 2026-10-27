@@ -63,17 +63,29 @@ window.ReleaseNotesModule = (function() {
       .replace(/"/g, '&quot;');
   }
 
+  function loadingStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function loadingDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function loadReleases() {
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       showMessage('A consulta depende do Apps Script publicado.');
       return;
     }
+    loadingStart('Carregando releases…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
           var response = JSON.parse(responseStr);
           if (!response.success) {
             showMessage(response.message || 'Não foi possível listar as releases.');
+            loadingDone();
             return;
           }
           releases = response.data || [];
@@ -81,9 +93,11 @@ window.ReleaseNotesModule = (function() {
         } catch (e) {
           showMessage('Resposta inválida do servidor.');
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         showMessage(err && err.message ? err.message : 'Falha no servidor.');
+        loadingDone();
       })
       .getDeploysScheduled();
   }
@@ -97,6 +111,7 @@ window.ReleaseNotesModule = (function() {
       return;
     }
     document.getElementById('release-notes-output').textContent = 'Gerando o texto...';
+    loadingStart('Gerando release notes…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -104,6 +119,7 @@ window.ReleaseNotesModule = (function() {
           if (!response.success) {
             document.getElementById('release-notes-output').textContent = 'Selecione uma release e gere o texto.';
             showMessage(response.message || 'Não foi possível gerar o release notes.');
+            loadingDone();
             return;
           }
           document.getElementById('release-notes-output').textContent = response.texto || '';
@@ -111,10 +127,12 @@ window.ReleaseNotesModule = (function() {
         } catch (e) {
           showMessage('Resposta inválida do servidor.');
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         document.getElementById('release-notes-output').textContent = 'Selecione uma release e gere o texto.';
         showMessage(err && err.message ? err.message : 'Falha no servidor.');
+        loadingDone();
       })
       .getReleaseNotes({ id: id });
   }

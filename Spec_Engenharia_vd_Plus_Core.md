@@ -61,6 +61,7 @@ Regras:
 | --- | --- |
 | `Code.gs` | `doGet`, `include`, permissões, leitura e gravação das abas, validação de deploy, feriados e pontes, Businessmap |
 | `Index.html` | Shell, Tailwind, Chart.js, abas e `AppShell` |
+| `LoadingOverlay.html` | Overlay global vd+ Pulse (`window.VdLoading`) |
 | `HeaderModule.html` | Saudação e tema |
 | `CapacityModule.html` | Capacidade e gráfico |
 | `BatmanModule.html` | Escala de sustentação (`window.BatmanModule`) |
@@ -372,6 +373,10 @@ Ações de editar e cancelar só aparecem quando o usuário é o dono da ausênc
 | `vdCore:absenceChanged` | `AbsencesModule` após gravar, editar ou cancelar | Nenhum | `AbsencesModule` recarrega a lista |
 | `vdCore:ritualsChanged` | `RitualsModule` após gravar, editar ou excluir | Nenhum | `RitualsModule` recarrega a lista |
 | `vdCore:themeChanged` | `HeaderModule` | `{ theme: "light" }` ou `{ theme: "dark" }` | `CapacityModule` |
+| `vdCore:loading` | Qualquer módulo | `{ message }` opcional | `VdLoading` / `AppShell.loading` |
+| `vdCore:loadingDone` | Qualquer módulo | Nenhum | `VdLoading` decrementa o contador |
+
+Enquanto o backend responde, o shell mostra o **vd+ Pulse Overlay** (`LoadingOverlay.html`): véu com blur, marca vd+ com anéis em órbita e mensagem contextual. Delay de aparição ~150 ms; mínimo visível ~300 ms. Chamadas em paralelo usam contador (só some quando todas terminam). Trocar de aba chama `reset`. API: `AppShell.loading.start(msg)` / `.done()` ou `window.VdLoading`.
 
 ## Em aberto
 
