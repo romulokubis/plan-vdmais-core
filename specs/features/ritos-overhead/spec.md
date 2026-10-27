@@ -20,6 +20,9 @@ Modelar ritos por **cadência** e **horas por ocorrência**, para que o desconto
 | Horas_Ocorrencia | Horas descontadas em cada ocorrência, por pessoa |
 | Cadencia | `Diaria`, `Quinzenal`, `Mensal`, `Trimestral` ou `Semestral` |
 | Obrigatorio | `Sim` ou `Não`. Só `Sim` entra na conta |
+| Data_Ancora | Opcional; alinha ocorrências à cerimônia real |
+
+Aba canônica: `Ritos` (renomeia `Rituais_e_Overhead` se ainda existir).
 
 ### Ocorrências no período filtrado
 
