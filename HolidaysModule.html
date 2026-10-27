@@ -136,7 +136,6 @@ window.HolidaysModule = (function() {
   return {
     init: function() {
       setupYearOptions();
-      fetchHolidaysData(state.selectedYear);
     },
     changeYear: function(val) {
       state.selectedYear = parseInt(val, 10);

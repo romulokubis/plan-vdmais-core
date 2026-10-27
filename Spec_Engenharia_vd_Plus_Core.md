@@ -2,7 +2,7 @@
 
 Aplicação web em Google Apps Script, vinculada à planilha **Plan Engenharia - DB**, com leitura de cards na Businessmap API v2. Centraliza a operação da squad vd+ Core:
 
-1. **Capacidade.** Horas efetivas da squad num período escolhido na tela, com o acumulado mês a mês, e a previsão de cards por Monte Carlo. A conta de horas é por pessoa no servidor; a tela não mostra pessoa.
+1. **Capacidade.** Dias efetivos da squad num período, com waterfall de descontos e previsão de cards por Monte Carlo. A conta é por pessoa no servidor; a tela não mostra pessoa.
 2. **Escala de sustentação (Batman).** Rodízio de quem atende a sustentação em cada período.
 3. **Calendário de deploy.** Releases por instância (Portugal e Colômbia), com bloqueio de datas proibidas.
 4. **Feriados e recesso.** Feriados da planilha e pontes calculadas, com indicação de quais bloqueiam deploy.
@@ -117,6 +117,8 @@ A lista de ausências ativas é visível a qualquer usuário autenticado da apli
 | Ordem_Escala | Posição no rodízio. `0` para quem não entra |
 | Estado | Estado usado para casar feriado estadual. Vazio se não houver |
 | Cidade | Cidade usada para casar feriado municipal. Vazio se não houver |
+| Participacao_Capacidade | Número de 0 a 1. Vazio: usa o default do Papel (Developer=1, Tech Lead=0,3, Tech Manager=fora) |
+| Ativo_Capacidade | `Sim` ou `Não`. Vazio = `Sim`. `Não` exclui a pessoa da capacidade |
 
 ### `Escala_Sustentacao`
 
@@ -159,9 +161,9 @@ Uma linha é o deploy de uma release em uma instância. Cada release da tribo co
 | Observacao | Texto livre |
 | Instancia | `Portugal` ou `Colômbia` |
 
-### `Rituais_e_Overhead`
+### `Ritos`
 
-Aba com nome legado. Só há ritos (não há overhead). A carga muda quando o time muda os ritos. O cálculo lê a aba no momento da consulta.
+Nome canônico da aba. Se ainda existir `Rituais_e_Overhead`, o backend renomeia para `Ritos` na gestão. Só há ritos (não há overhead).
 
 | Coluna | Conteúdo |
 | --- | --- |
@@ -170,14 +172,13 @@ Aba com nome legado. Só há ritos (não há overhead). A carga muda quando o ti
 | Horas_Ocorrencia | Horas descontadas em cada ocorrência, por pessoa |
 | Cadencia | `Diaria`, `Quinzenal`, `Mensal`, `Trimestral` ou `Semestral` |
 | Obrigatorio | `Sim` ou `Não`. Só `Sim` entra na conta |
+| Data_Ancora | Opcional (`DD/MM/AAAA` ou `AAAA-MM-DD`). Alinha quinzenal/mensal/… à cerimônia real |
 
 Ocorrências no período filtrado:
 
 - `Diaria`: cada dia útil (segunda a sexta) do intervalo.
-- `Quinzenal`: segunda-feira de cada semana ISO ímpar que intersecta o intervalo.
-- `Mensal`: primeiro dia útil de cada mês tocado pelo intervalo.
-- `Trimestral`: primeiro dia útil de janeiro, abril, julho e outubro tocados pelo intervalo.
-- `Semestral`: primeiro dia útil de janeiro e julho tocados pelo intervalo.
+- `Quinzenal` sem âncora: segunda-feira de cada semana ISO ímpar. Com âncora: segundas a cada 14 dias a partir da segunda da âncora.
+- `Mensal` / `Trimestral` / `Semestral` sem âncora: primeiro dia útil do mês-alvo. Com âncora: dia do mês da âncora (se fim de semana, próximo dia útil). Trimestral: jan/abr/jul/out. Semestral: jan/jul.
 
 Criar / editar / excluir pela aba **Ritos**, só `Tech Manager`. Planilha com `Horas_Semana`/`Categoria` migra na gestão: `Horas_Ocorrencia = Horas_Semana ÷ 5`, `Cadencia = Diaria`; linhas `Overhead` são descartadas.
 
@@ -265,28 +266,29 @@ Turno sem data interpretável não é alterado. A tela mostra o plantonista vige
 
 Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Ordem_Escala`.
 
+O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (padrão 1). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros.
+
 ## Capacidade
 
-A tela consulta um período, com início e fim inclusivos. Na abertura da aba Capacidade e no atalho **Este mês**, o filtro é o mês civil corrente (dia 1 ao último dia) e a consulta roda. Essa consulta (incluindo a previsão de cards) não dispara na abertura da app nem enquanto outra aba está ativa. O resultado não é gravado.
+A tela consulta um período, com início e fim inclusivos. Na **primeira** abertura da aba Capacidade e no atalho **Este mês**, o filtro é o mês civil corrente e a consulta roda. Trocar de aba e voltar **preserva** o filtro e o último resultado (não reseta para o mês corrente). A consulta (incluindo a previsão de cards) não dispara na abertura da app. O resultado não é gravado.
 
-Entram na conta:
+Entram na conta quem tem `Ativo_Capacidade ≠ Não` e participação > 0:
 
-- `Developer`: participação 1.
-- `Tech Lead`: participação 0,3.
-- `Tech Manager`: fora da conta.
+- Default por Papel: `Developer` = 1; `Tech Lead` = 0,3; `Tech Manager` = fora.
+- `Participacao_Capacidade` preenchida sobrescreve o default (0 a 1). Valor 0 exclui.
 
 Jornada: 7,5 horas de segunda a sexta. Não há fator de foco.
 
 Para cada pessoa, no período filtrado:
 
-1. Os dias candidatos são segunda a sexta.
-2. Sai o feriado que se aplica à pessoa e a ponte de feriado nacional ou recesso.
-3. Sai a ausência com `Status` ativo (ou sem status, na linha legada). `Modalidade = Dia` (ou `Horas` vazio na linha legada): cada dia útil do intervalo sai por inteiro. `Modalidade = Hora` (ou `Horas` preenchido na linha legada): desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias. Ausência `Cancelado` não entra.
-4. Dia que sobrou e cai num turno de sustentação dessa pessoa vale zero para entrega. O turno tira 100% do dia.
-5. Em cada data de ocorrência de rito obrigatório que ainda tem horas, desconta até `Horas_Ocorrencia` daquele rito (vários ritos no mesmo dia somam, sem ultrapassar as horas do dia).
-6. `Horas_Efetivas = participacao ×` soma das horas que restam após o corte de ritos.
+1. Os dias candidatos são segunda a sexta (`base` = esses dias × jornada × participação).
+2. Sai o feriado que se aplica à pessoa e a ponte de feriado nacional ou recesso (`feriados`).
+3. Sai a ausência com `Status` ativo (ou sem status, na linha legada). `Modalidade = Dia` (ou `Horas` vazio na linha legada): cada dia útil do intervalo sai por inteiro. `Modalidade = Hora` (ou `Horas` preenchido na linha legada): desconta essa quantidade no cruzamento com o período, no máximo as horas desses dias. Ausência `Cancelado` não entra (`ausencias`).
+4. Dia que sobrou e cai num turno de sustentação dessa pessoa vale zero para entrega (`batman`).
+5. Em cada data de ocorrência de rito obrigatório que ainda tem horas, desconta até `Horas_Ocorrencia` (`rituais`).
+6. `Horas_Efetivas` = participação × horas restantes = `base − feriados − ausencias − batman − rituais` (agregado da squad).
 
-O total da squad é a soma das horas efetivas de quem entrou na conta.
+O total da squad é a soma das horas efetivas. A API devolve o waterfall agregado (`base`, `feriados`, `ausencias`, `batman`, `rituais`, `total`) em horas; a UI mostra em dias.
 
 Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
@@ -296,19 +298,19 @@ Feriado casa pelo texto, sem diferenciar maiúsculas nem acento:
 
 Cidade ou estado novo passa a valer quando existe na pessoa e numa linha de feriado. Não há lista fechada no código. Pessoa sem estado não recebe feriado estadual. Pessoa sem cidade não recebe feriado municipal.
 
-A tela mostra três números da squad, convertidos só na interface: dias efetivos do período, o período filtrado e os dias de rito descontados nesse período. A conversão usa `jornada` devolvida por `getCapacity` (7,5 horas por dia útil). A exibição usa uma casa decimal e o sufixo `dias`. Os rótulos são **Dias efetivos** e **Ritos no período (dias)**. Não há lista, nome, papel nem gráfico por pessoa. A resposta de `getCapacity` continua em horas (inclui `jornada` e `rituais`) e não devolve dias, nome nem papel.
+A tela mostra o período, os dias efetivos e o waterfall (base, feriados, ausências, Batman, ritos) em dias. Conversão: horas ÷ `jornada` (7,5). Uma casa decimal e sufixo `dias`. Não há lista por pessoa. `getCapacity` devolve horas (`jornada`, waterfall, `meses[].horas`) sem acumulado, sem nome nem papel.
 
-O gráfico mostra os dias efetivos de cada mês separadamente, dentro do período filtrado (horas do mês ÷ jornada). Não há soma acumulada entre os meses. O total do período é a soma das horas já após o corte de ritos por ocorrência; a repartição mensal usa as horas restantes de cada dia, então ritos raros pesam só nos meses em que caem. A soma das barras, em horas, coincide com o total da squad.
+O gráfico mostra os dias efetivos de cada mês (horas ÷ jornada). Sem soma acumulada entre meses. A repartição mensal usa as horas restantes após os cortes; ritos raros pesam só nos meses em que caem.
 
 ### Previsão de cards
 
-O mesmo botão **Consultar** chama `getThroughputForecast`. As horas e os cards não se convertem.
+O mesmo botão **Consultar** chama `getThroughputForecast`. O Monte Carlo **não** usa os dias efetivos do período — só o horizonte em meses civis. A UI deixa isso explícito e mostra a ponte **cards por dia efetivo** = mediana ÷ dias efetivos (quando dias > 0).
 
-O histórico não segue o filtro. São os seis meses civis já encerrados antes do mês corrente, no fuso `America/Sao_Paulo`, no board `335`. Entra o card ativo ou arquivado cuja `first_end_time` cai nesse intervalo: a primeira vez que foi para Done ou Ready to archive. Entram somente os tipos Story e Technical Story. Os ids saem pelo nome em `/boards/335/cardTypes` e, se ali não aparecerem os dois, em `/cardTypes`. Se nenhum dos dois caminhos trouxer esses nomes, valem os ids já vistos neste board: Story `1` e Technical Story `12`. Também fica de fora o card cuja coluna atual ou última coluna é uma destas: `80228` (⛔ Cancelado), `124129` (Cancelado), `139956` (Cancelled). Mês sem card entra nas simulações com zero. O histórico fica em cache por 6 horas.
+O histórico não segue o filtro. São os seis meses civis já encerrados antes do mês corrente, no fuso `America/Sao_Paulo`, no board `335`. Entra o card ativo ou arquivado cuja `first_end_time` cai nesse intervalo: a primeira vez que foi para Done ou Ready to archive. Entram somente os tipos Story e Technical Story. Os ids saem pelo nome em `/boards/335/cardTypes` e, se ali não aparecerem os dois, em `/cardTypes`. Se nenhum dos dois caminhos trouxer esses nomes, valem os ids já vistos neste board: Story `1` e Technical Story `12`. Também fica de fora o card cuja coluna atual ou última coluna é uma destas: `80228` (⛔ Cancelado), `124129` (Cancelado), `139956` (Cancelled). Mês sem card entra nas simulações com zero. O histórico fica em cache por 6 horas. O gráfico do histórico de 6 meses fica sempre visível.
 
-O período filtrado só define o horizonte: a quantidade de meses civis que o intervalo toca. Cada mês do horizonte sorteia, com reposição, um dos seis meses do histórico. São 10.000 simulações. A tela mostra o cenário conservador (percentil 15), a mediana e o cenário otimista (percentil 85). O gráfico principal agrupa o histórico em blocos do mesmo tamanho do horizonte e coloca ao lado a faixa projetada do período filtrado, com um marcador na mediana. O gráfico mensal permanece abaixo, como histórico usado nas simulações, somente quando o horizonte tem mais de um mês. A descrição na tela é: `VD Plataforma Core · De {início} a {fim}. Cada mês entra nas simulações com o mesmo peso. Resultado de 10.000 simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)`.
+O período filtrado só define o horizonte: a quantidade de meses civis que o intervalo toca. Cada mês do horizonte sorteia, com reposição, um dos seis meses do histórico. São 10.000 simulações. Rótulos: **Cenário conservador (P15)**, **Mediana (P50)**, **Cenário otimista (P85)**. O gráfico principal agrupa o histórico em blocos do mesmo tamanho do horizonte e coloca ao lado a faixa projetada, com marcador na mediana.
 
-Se o filtro não começa no dia 1 e termina no último dia do mês final, a tela avisa que a previsão usa meses cheios e a capacidade usa os dias escolhidos. A resposta não traz título, dono nem lista de cards.
+Se o filtro não fecha meses cheios, a tela avisa. A resposta não traz título, dono nem lista de cards.
 
 ## Release notes
 

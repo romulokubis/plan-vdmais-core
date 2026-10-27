@@ -676,7 +676,8 @@ function cancelAbsence(id) {
   }
 }
 
-var RITUAL_HEADERS = ['ID', 'Nome', 'Horas_Ocorrencia', 'Cadencia', 'Obrigatorio'];
+var RITUAL_HEADERS = ['ID', 'Nome', 'Horas_Ocorrencia', 'Cadencia', 'Obrigatorio', 'Data_Ancora'];
+var RITUAL_SHEET_NAMES = ['Ritos', 'Rituais_e_Overhead'];
 var RITUAL_CADENCIAS = {
   diaria: 'Diaria',
   quinzenal: 'Quinzenal',
@@ -684,6 +685,19 @@ var RITUAL_CADENCIAS = {
   trimestral: 'Trimestral',
   semestral: 'Semestral'
 };
+
+function findRitualsSheet(ss) {
+  for (var i = 0; i < RITUAL_SHEET_NAMES.length; i++) {
+    var sheet = ss.getSheetByName(RITUAL_SHEET_NAMES[i]);
+    if (sheet) return sheet;
+  }
+  return null;
+}
+
+function getRitualsSheetName(ss) {
+  var sheet = findRitualsSheet(ss);
+  return sheet ? sheet.getName() : 'Ritos';
+}
 
 function nextRitualId(sheet) {
   var data = sheet.getDataRange().getDisplayValues();
@@ -717,7 +731,9 @@ function ritualHeaderMap(headers) {
 
 function needsRitualCadenciaMigration(headers) {
   var map = ritualHeaderMap(headers);
-  return map.cadencia === undefined || map.horas_ocorrencia === undefined;
+  if (map.cadencia === undefined || map.horas_ocorrencia === undefined) return true;
+  if (map.data_ancora === undefined) return true;
+  return false;
 }
 
 function firstWeekdayOfMonth(year, month) {
@@ -743,12 +759,26 @@ function mondayOfDate(date) {
   return addDays(day, offset);
 }
 
+function weekdayOnOrAfter(dateObj) {
+  var day = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  while (day.getDay() === 0 || day.getDay() === 6) {
+    day = addDays(day, 1);
+  }
+  return day;
+}
+
+function anchoredDayInMonth(year, month, anchor) {
+  var lastDay = new Date(year, month + 1, 0).getDate();
+  var dayNum = Math.min(anchor.getDate(), lastDay);
+  return weekdayOnOrAfter(new Date(year, month, dayNum));
+}
+
 /**
  * Datas de ocorrência do rito dentro de [start, end] (inclusive).
- * Quinzenal: segunda de semanas ISO ímpares.
- * Mensal/Trimestral/Semestral: primeiro dia útil do mês-alvo no intervalo.
+ * Com Data_Ancora: quinzenal a cada 14 dias; mensal/… no dia do mês da âncora.
+ * Sem âncora: quinzenal = semanas ISO ímpares; mensal/… = 1º dia útil.
  */
-function ritualOccurrenceDates(cadencia, start, end) {
+function ritualOccurrenceDates(cadencia, start, end, anchor) {
   var dates = [];
   var seen = {};
   function pushDate(dateObj) {
@@ -771,6 +801,17 @@ function ritualOccurrenceDates(cadencia, start, end) {
   }
 
   if (cadencia === 'Quinzenal') {
+    if (anchor) {
+      var biweekly = mondayOfDate(anchor);
+      while (biweekly.getTime() < start.getTime()) biweekly = addDays(biweekly, 14);
+      while (biweekly.getTime() > start.getTime()) biweekly = addDays(biweekly, -14);
+      if (biweekly.getTime() < start.getTime()) biweekly = addDays(biweekly, 14);
+      while (biweekly.getTime() <= end.getTime()) {
+        pushDate(biweekly);
+        biweekly = addDays(biweekly, 14);
+      }
+      return dates;
+    }
     var weekCursor = mondayOfDate(start);
     while (weekCursor.getTime() <= end.getTime()) {
       if (isoWeekNumber(weekCursor) % 2 === 1) pushDate(weekCursor);
@@ -787,18 +828,29 @@ function ritualOccurrenceDates(cadencia, start, end) {
     if (cadencia === 'Mensal') include = true;
     if (cadencia === 'Trimestral' && (m === 1 || m === 4 || m === 7 || m === 10)) include = true;
     if (cadencia === 'Semestral' && (m === 1 || m === 7)) include = true;
-    if (include) pushDate(firstWeekdayOfMonth(month.getFullYear(), month.getMonth()));
+    if (include) {
+      if (anchor) pushDate(anchoredDayInMonth(month.getFullYear(), month.getMonth(), anchor));
+      else pushDate(firstWeekdayOfMonth(month.getFullYear(), month.getMonth()));
+    }
     month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
   }
   return dates;
 }
 
 function ensureRitualsSheet(ss) {
-  var sheet = ss.getSheetByName('Rituais_e_Overhead');
+  var sheet = findRitualsSheet(ss);
   if (!sheet) {
-    sheet = ss.insertSheet('Rituais_e_Overhead');
+    sheet = ss.insertSheet('Ritos');
     sheet.appendRow(RITUAL_HEADERS);
     return sheet;
+  }
+
+  if (sheet.getName() !== 'Ritos') {
+    try {
+      sheet.setName('Ritos');
+    } catch (renameErr) {
+      Logger.log('[Ritos] Não foi possível renomear a aba: ' + renameErr.toString());
+    }
   }
 
   var lastCol = Math.max(sheet.getLastColumn(), 1);
@@ -826,6 +878,7 @@ function ensureRitualsSheet(ss) {
     var horasOcIdx = map.horas_ocorrencia;
     var cadIdx = map.cadencia;
     var obrIdx = map.obrigatorio !== undefined ? map.obrigatorio : 2;
+    var ancoraIdx = map.data_ancora;
 
     var horasOc = '';
     var cadencia = parseRitualCadencia(cadIdx !== undefined ? row[cadIdx] : '');
@@ -844,12 +897,15 @@ function ensureRitualsSheet(ss) {
     seq += 1;
     if (!id.match(/^RIT-/i)) id = 'RIT-' + padIdNumber(seq);
 
+    var ancora = ancoraIdx !== undefined ? String(row[ancoraIdx] || '').trim() : '';
+
     migrated.push([
       id,
       nome,
       horasOc,
       cadencia,
-      parseRitualObrigatorio(row[obrIdx]) === 'Sim' ? 'Sim' : 'Não'
+      parseRitualObrigatorio(row[obrIdx]) === 'Sim' ? 'Sim' : 'Não',
+      ancora
     ]);
   }
 
@@ -872,7 +928,8 @@ function readRitualRow(row) {
       nome: String(row[1] || '').trim(),
       horasOcorrencia: String(row[2] || '').trim(),
       cadencia: parseRitualCadencia(row[3]) || 'Diaria',
-      obrigatorio: parseRitualObrigatorio(row[4]) === 'Sim' ? 'Sim' : 'Não'
+      obrigatorio: parseRitualObrigatorio(row[4]) === 'Sim' ? 'Sim' : 'Não',
+      dataAncora: String(row[5] || '').trim()
     };
   }
 
@@ -883,13 +940,14 @@ function readRitualRow(row) {
     nome: c0,
     horasOcorrencia: horasOc,
     cadencia: 'Diaria',
-    obrigatorio: parseRitualObrigatorio(row[2]) === 'Sim' ? 'Sim' : 'Não'
+    obrigatorio: parseRitualObrigatorio(row[2]) === 'Sim' ? 'Sim' : 'Não',
+    dataAncora: ''
   };
 }
 
 function loadActiveRituals(ss) {
   var items = [];
-  sheetRows(ss, 'Rituais_e_Overhead').forEach(function(row) {
+  sheetRows(ss, getRitualsSheetName(ss)).forEach(function(row) {
     var item = readRitualRow(row);
     if (!item.nome || item.obrigatorio !== 'Sim') return;
     var hours = parseFloat(String(item.horasOcorrencia || '').replace(',', '.'));
@@ -898,7 +956,8 @@ function loadActiveRituals(ss) {
     items.push({
       nome: item.nome,
       horasOcorrencia: hours,
-      cadencia: cadencia
+      cadencia: cadencia,
+      ancora: parseSheetDate(item.dataAncora) || null
     });
   });
   return items;
@@ -907,7 +966,7 @@ function loadActiveRituals(ss) {
 function applyRitualsToDayHours(dayHours, rituals, start, end) {
   var cutTotal = 0;
   rituals.forEach(function(ritual) {
-    ritualOccurrenceDates(ritual.cadencia, start, end).forEach(function(dateObj) {
+    ritualOccurrenceDates(ritual.cadencia, start, end, ritual.ancora).forEach(function(dateObj) {
       var key = formatSheetDate(dateObj);
       if (dayHours[key] === undefined || dayHours[key] <= 0) return;
       var cut = Math.min(dayHours[key], ritual.horasOcorrencia);
@@ -931,12 +990,20 @@ function validateRitualPayload(payload) {
     return { ok: false, message: 'Informe a cadência (Diaria, Quinzenal, Mensal, Trimestral ou Semestral).' };
   }
   var obrigatorio = parseRitualObrigatorio(payload.obrigatorio);
+  var ancoraRaw = String(payload.dataAncora || '').trim();
+  var ancora = '';
+  if (ancoraRaw) {
+    var parsedAncora = parseSheetDate(ancoraRaw);
+    if (!parsedAncora) return { ok: false, message: 'Data âncora inválida.' };
+    ancora = formatSheetDate(parsedAncora);
+  }
   return {
     ok: true,
     nome: nome,
     horasOcorrencia: String(hours),
     cadencia: cadencia,
-    obrigatorio: obrigatorio === 'Sim' ? 'Sim' : 'Não'
+    obrigatorio: obrigatorio === 'Sim' ? 'Sim' : 'Não',
+    dataAncora: ancora
   };
 }
 
@@ -944,8 +1011,7 @@ function getRituals() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
-    ensureRitualsSheet(ss);
-    var sheet = ss.getSheetByName('Rituais_e_Overhead');
+    var sheet = ensureRitualsSheet(ss);
     var data = sheet.getDataRange().getDisplayValues();
     var items = [];
     for (var i = 1; i < data.length; i++) {
@@ -983,7 +1049,8 @@ function saveRitual(payload) {
       validated.nome,
       validated.horasOcorrencia,
       validated.cadencia,
-      validated.obrigatorio
+      validated.obrigatorio,
+      validated.dataAncora
     ]);
     return JSON.stringify({ success: true, message: 'Rito cadastrado!', id: id });
   } catch (e) {
@@ -1026,7 +1093,8 @@ function updateRitual(payload) {
       validated.nome,
       validated.horasOcorrencia,
       validated.cadencia,
-      validated.obrigatorio
+      validated.obrigatorio,
+      validated.dataAncora
     ]]);
     return JSON.stringify({ success: true, message: 'Rito ' + payload.id + ' atualizado!' });
   } catch (e) {
@@ -1177,6 +1245,123 @@ function getEscalaBatman() {
   }
 }
 
+function nextEscalaId(sheet) {
+  var data = sheet.getDataRange().getDisplayValues();
+  var max = 0;
+  for (var i = 1; i < data.length; i++) {
+    var match = String(data[i][0] || '').trim().match(/^ESC-(\d+)$/i);
+    if (!match) continue;
+    var n = parseInt(match[1], 10);
+    if (n > max) max = n;
+  }
+  return max;
+}
+
+function loadEscalaRoster(ss) {
+  var roster = [];
+  sheetRows(ss, 'Integrantes_Squad').forEach(function(row) {
+    if (normalizePlace(row[4]) !== 'sim') return;
+    var email = String(row[2] || '').trim().toLowerCase();
+    var nome = String(row[1] || '').trim();
+    if (!email) return;
+    roster.push({
+      email: email,
+      nome: nome,
+      ordem: parseInt(row[5], 10) || 0
+    });
+  });
+  roster.sort(function(a, b) { return a.ordem - b.ordem; });
+  return roster;
+}
+
+/**
+ * Acrescenta turnos de sustentação. Não apaga existentes.
+ * payload: { dataInicio, quantidadeTurnos, duracaoSemanas }
+ */
+function regenerateBatmanSchedule(payload) {
+  try {
+    var actor = getCurrentActor();
+    if (!actor.authorized || !actor.isManager) {
+      return JSON.stringify({
+        success: false,
+        message: 'Acesso negado: apenas o Tech Manager pode gerar a escala.'
+      });
+    }
+
+    var start = parseSheetDate(payload && payload.dataInicio);
+    if (!start) {
+      return JSON.stringify({ success: false, message: 'Informe a data de início.' });
+    }
+    var quantity = parseInt(payload && payload.quantidadeTurnos, 10);
+    if (isNaN(quantity) || quantity < 1) {
+      return JSON.stringify({ success: false, message: 'Informe a quantidade de turnos (mínimo 1).' });
+    }
+    if (quantity > 52) {
+      return JSON.stringify({ success: false, message: 'No máximo 52 turnos por geração.' });
+    }
+    var weeks = parseInt(payload && payload.duracaoSemanas, 10);
+    if (isNaN(weeks) || weeks < 1) weeks = 1;
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var sheet = ss.getSheetByName('Escala_Sustentacao');
+    if (!sheet) {
+      return JSON.stringify({ success: false, message: 'Aba "Escala_Sustentacao" não encontrada.' });
+    }
+
+    var roster = loadEscalaRoster(ss);
+    if (!roster.length) {
+      return JSON.stringify({
+        success: false,
+        message: 'Nenhum integrante com Ativo_Escala = Sim.'
+      });
+    }
+
+    var latestEnd = null;
+    sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
+      var end = parseSheetDate(row[4]);
+      if (!end) return;
+      if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
+    });
+
+    var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    if (latestEnd) {
+      var nextDay = addDays(latestEnd, 1);
+      if (nextDay.getTime() > cursor.getTime()) cursor = nextDay;
+    }
+
+    var nextId = nextEscalaId(sheet);
+    var created = [];
+    for (var t = 0; t < quantity; t++) {
+      var person = roster[t % roster.length];
+      var turnStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+      var turnEnd = addDays(turnStart, weeks * 7 - 1);
+      nextId += 1;
+      var id = 'ESC-' + padIdNumber(nextId);
+      sheet.appendRow([
+        id,
+        person.email,
+        person.nome,
+        formatSheetDate(turnStart),
+        formatSheetDate(turnEnd),
+        String(weeks),
+        '',
+        ''
+      ]);
+      created.push(id);
+      cursor = addDays(turnEnd, 1);
+    }
+
+    return JSON.stringify({
+      success: true,
+      message: created.length + ' turno(s) gerado(s).',
+      ids: created
+    });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao gerar escala: ' + e.toString() });
+  }
+}
+
 /**
  * Módulo Calendário: Busca a lista de deploys agendados (ocultando registros cancelados).
  */
@@ -1240,7 +1425,7 @@ function saveDeploySchedule(payload) {
       sheet = ss.insertSheet('Planejamento_Deploys');
       sheet.appendRow([
         'ID_Release', 'Release_Tribo_VD', 'Data_inicio_release', 
-        'Data_fim_release', 'Release_Sistema', 'Data Deploy', 
+        'Data_fim_release', 'Release_Sistema', 'Data_Deploy',
         'Responsavel', 'Status', 'Observacao', 'Instancia'
       ]);
     }
@@ -1616,12 +1801,87 @@ function addDays(date, days) {
   return next;
 }
 
-function capacityParticipation(papel) {
+function capacityParticipationDefault(papel) {
   var role = normalizePlace(papel);
   if (role.indexOf('tech manager') !== -1) return null;
   if (role.indexOf('tech lead') !== -1) return 0.3;
   if (role.indexOf('developer') !== -1) return 1;
   return null;
+}
+
+/** Compat: código antigo. Preferir resolveCapacityParticipation. */
+function capacityParticipation(papel) {
+  return capacityParticipationDefault(papel);
+}
+
+function resolveCapacityParticipation(papel, participacaoRaw, ativoRaw) {
+  if (normalizePlace(ativoRaw) === 'nao') return null;
+  var raw = String(participacaoRaw || '').trim();
+  if (raw !== '') {
+    var custom = parseFloat(raw.replace(',', '.'));
+    if (isNaN(custom) || custom < 0) return null;
+    if (custom === 0) return null;
+    if (custom > 1) custom = 1;
+    return custom;
+  }
+  return capacityParticipationDefault(papel);
+}
+
+function ensureIntegrantesCapacityHeaders(ss) {
+  var sheet = ss.getSheetByName('Integrantes_Squad');
+  if (!sheet) return;
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+  var map = ritualHeaderMap(headers);
+  var toAdd = [];
+  if (map.participacao_capacidade === undefined) toAdd.push('Participacao_Capacidade');
+  if (map.ativo_capacidade === undefined) toAdd.push('Ativo_Capacidade');
+  if (!toAdd.length) return;
+  sheet.getRange(1, lastCol + 1, 1, lastCol + toAdd.length).setValues([toAdd]);
+}
+
+function loadCapacityPeople(ss) {
+  var sheet = ss.getSheetByName('Integrantes_Squad');
+  if (!sheet) return [];
+  ensureIntegrantesCapacityHeaders(ss);
+  var data = sheet.getDataRange().getDisplayValues();
+  if (!data || data.length <= 1) return [];
+  var map = ritualHeaderMap(data[0] || []);
+  var people = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var emailIdx = map.email !== undefined ? map.email : 2;
+    var nomeIdx = map.nome !== undefined ? map.nome : 1;
+    var papelIdx = map.papel !== undefined ? map.papel : 3;
+    var ordemIdx = map.ordem_escala !== undefined ? map.ordem_escala : 5;
+    var estadoIdx = map.estado !== undefined ? map.estado : 6;
+    var cidadeIdx = map.cidade !== undefined ? map.cidade : 7;
+    var partIdx = map.participacao_capacidade;
+    var ativoIdx = map.ativo_capacidade;
+
+    var email = String(row[emailIdx] || '').trim().toLowerCase();
+    var papel = String(row[papelIdx] || '').trim();
+    var participation = resolveCapacityParticipation(
+      papel,
+      partIdx !== undefined ? row[partIdx] : '',
+      ativoIdx !== undefined ? row[ativoIdx] : ''
+    );
+    if (participation === null || !email) continue;
+    people.push({
+      nome: String(row[nomeIdx] || '').trim(),
+      email: email,
+      papel: papel,
+      participacao: participation,
+      ordem: parseInt(row[ordemIdx], 10) || 0,
+      estado: normalizePlace(row[estadoIdx]),
+      cidade: normalizePlace(row[cidadeIdx])
+    });
+  }
+  people.sort(function(a, b) {
+    if (a.participacao !== b.participacao) return b.participacao - a.participacao;
+    return a.ordem - b.ordem;
+  });
+  return people;
 }
 
 function holidayScope(esfera) {
@@ -1744,26 +2004,7 @@ function getCapacity(payload) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
-    var people = [];
-    sheetRows(ss, 'Integrantes_Squad').forEach(function(row) {
-      var participation = capacityParticipation(row[3]);
-      var email = String(row[2] || '').trim().toLowerCase();
-      if (participation === null || !email) return;
-      people.push({
-        nome: String(row[1] || '').trim(),
-        email: email,
-        papel: String(row[3] || '').trim(),
-        participacao: participation,
-        ordem: parseInt(row[5], 10) || 0,
-        estado: normalizePlace(row[6]),
-        cidade: normalizePlace(row[7])
-      });
-    });
-
-    people.sort(function(a, b) {
-      if (a.participacao !== b.participacao) return b.participacao - a.participacao;
-      return a.ordem - b.ordem;
-    });
+    var people = loadCapacityPeople(ss);
 
     var calendar = buildCapacityCalendar(sheetRows(ss, 'Feriados_e_Pontes'));
 
@@ -1801,7 +2042,7 @@ function getCapacity(payload) {
 
     var jornada = 7.5;
     var total = 0;
-    var rituaisPeriodo = 0;
+    var waterfall = { base: 0, feriados: 0, ausencias: 0, batman: 0, rituais: 0 };
     var months = {};
     var monthCursor = new Date(start.getFullYear(), start.getMonth(), 1);
     var monthEnd = new Date(end.getFullYear(), end.getMonth(), 1);
@@ -1812,19 +2053,25 @@ function getCapacity(payload) {
 
     people.forEach(function(person) {
       var dayHours = {};
+      var baseHours = 0;
+      var holidayCut = 0;
 
       var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
       while (cursor.getTime() <= end.getTime()) {
         var dow = cursor.getDay();
         if (dow !== 0 && dow !== 6) {
           var key = formatSheetDate(cursor);
-          if (!holidayForPerson(calendar, person, key)) {
+          baseHours += jornada;
+          if (holidayForPerson(calendar, person, key)) {
+            holidayCut += jornada;
+          } else {
             dayHours[key] = jornada;
           }
         }
         cursor = addDays(cursor, 1);
       }
 
+      var absenceCut = 0;
       absences.forEach(function(item) {
         if (item.email !== person.email) return;
         var keys = sortedDateKeys(dayHours);
@@ -1834,6 +2081,7 @@ function getCapacity(payload) {
             if (!day) return;
             var time = day.getTime();
             if (time < item.start || time > item.end) return;
+            absenceCut += dayHours[key];
             dayHours[key] = 0;
           });
           return;
@@ -1849,19 +2097,21 @@ function getCapacity(payload) {
           var cut = Math.min(dayHours[key], remaining);
           dayHours[key] -= cut;
           remaining -= cut;
+          absenceCut += cut;
         });
       });
 
+      var batmanCut = 0;
       sortedDateKeys(dayHours).forEach(function(key) {
         var day = parseSheetDate(key);
         if (!day || dayHours[key] <= 0) return;
         if (personOnSustainment(shifts, person.email, day.getTime())) {
+          batmanCut += dayHours[key];
           dayHours[key] = 0;
         }
       });
 
       var ritualCut = applyRitualsToDayHours(dayHours, rituals, start, end);
-      rituaisPeriodo += person.participacao * ritualCut;
 
       var entrega = 0;
       sortedDateKeys(dayHours).forEach(function(key) {
@@ -1869,7 +2119,14 @@ function getCapacity(payload) {
         entrega += dayHours[key];
       });
 
-      var efetivas = person.participacao * entrega;
+      var p = person.participacao;
+      waterfall.base += p * baseHours;
+      waterfall.feriados += p * holidayCut;
+      waterfall.ausencias += p * absenceCut;
+      waterfall.batman += p * batmanCut;
+      waterfall.rituais += p * ritualCut;
+
+      var efetivas = p * entrega;
       total += efetivas;
 
       if (efetivas <= 0 || entrega <= 0) return;
@@ -1885,14 +2142,12 @@ function getCapacity(payload) {
 
     var monthKeys = Object.keys(months).sort();
     var serie = [];
-    var acumulado = 0;
     var assigned = 0;
     monthKeys.forEach(function(key, index) {
       var horas = roundHours(months[key]);
       if (index === monthKeys.length - 1) horas = roundHours(total - assigned);
       assigned += horas;
-      acumulado = roundHours(acumulado + horas);
-      serie.push({ mes: key, horas: horas, acumulado: acumulado });
+      serie.push({ mes: key, horas: horas });
     });
 
     return JSON.stringify({
@@ -1901,7 +2156,14 @@ function getCapacity(payload) {
       fim: formatSheetDate(end),
       jornada: jornada,
       total: roundHours(total),
-      rituais: roundHours(rituaisPeriodo),
+      rituais: roundHours(waterfall.rituais),
+      descontos: {
+        base: roundHours(waterfall.base),
+        feriados: roundHours(waterfall.feriados),
+        ausencias: roundHours(waterfall.ausencias),
+        batman: roundHours(waterfall.batman),
+        rituais: roundHours(waterfall.rituais)
+      },
       meses: serie
     });
   } catch (e) {

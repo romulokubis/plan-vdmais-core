@@ -470,8 +470,6 @@ window.AbsencesModule = (function() {
   return {
     init: function() {
       syncPermissionsFromShell();
-      fetchMembers();
-      fetchAbsences();
 
       window.addEventListener('vdCore:permissionsLoaded', function(e) {
         if (!e || !e.detail) return;
@@ -479,7 +477,6 @@ window.AbsencesModule = (function() {
         state.isManager = !!e.detail.isManager;
         state.email = e.detail.email || '';
         applyPermissionsUI();
-        fetchMembers();
         render();
       });
 

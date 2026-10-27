@@ -12,4 +12,6 @@ Itens **ainda não** incorporados (ou só parcialmente) na spec de produto.
 
 | Item | Arquivo | Origem |
 | --- | --- | --- |
-| Regenerar escala de sustentação | [`regenerar-escala.md`](./regenerar-escala.md) | Spec → “Em aberto” |
+| — | — | Nenhum no momento |
+
+Itens promovidos recentemente: regenerar escala → `specs/features/regenerar-escala/`.

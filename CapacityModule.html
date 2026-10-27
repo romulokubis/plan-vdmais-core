@@ -3,7 +3,7 @@
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
       <div>
         <h2 class="text-lg font-bold text-slate-900 dark:text-white">Capacidade da Squad</h2>
-        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Dias efetivos de entrega da squad no período.</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Dias efetivos de entrega e waterfall de descontos no período.</p>
       </div>
       <form id="capacity-filter" class="flex flex-col sm:flex-row sm:items-end gap-3">
         <div>
@@ -15,12 +15,12 @@
           <input type="date" id="capacity-fim" required class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
         </div>
         <button type="button" id="capacity-month" class="px-4 py-2 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200">Este mês</button>
-        <button type="submit" class="px-4 py-2 text-xs font-bold rounded-lg bg-[#008775] text-white">Consultar</button>
+        <button type="submit" id="capacity-submit" class="px-4 py-2 text-xs font-bold rounded-lg bg-[#008775] text-white">Consultar</button>
       </form>
     </div>
   </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dias efetivos</p>
       <p id="capacity-total" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
@@ -30,8 +30,40 @@
       <p id="capacity-period" class="mt-2 text-sm font-bold text-slate-900 dark:text-white">—</p>
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-5 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ritos no período (dias)</p>
-      <p id="capacity-rituals" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cards / dia efetivo</p>
+      <p id="capacity-cards-per-day" class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">—</p>
+      <p class="mt-1 text-[10px] text-slate-400">Mediana do forecast ÷ dias efetivos</p>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Como chegamos ao total</h3>
+    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Descontos agregados da squad (dias). Sem lista por pessoa.</p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Base</p>
+        <p id="capacity-wf-base" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">− Feriados</p>
+        <p id="capacity-wf-feriados" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">− Ausências</p>
+        <p id="capacity-wf-ausencias" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">− Batman</p>
+        <p id="capacity-wf-batman" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">− Ritos</p>
+        <p id="capacity-wf-rituais" class="mt-1 text-lg font-bold text-slate-900 dark:text-white">—</p>
+      </div>
+      <div>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">= Efetivos</p>
+        <p id="capacity-wf-total" class="mt-1 text-lg font-bold text-[#008775] dark:text-[#2dd4bf]">—</p>
+      </div>
     </div>
   </div>
 
@@ -44,27 +76,27 @@
 
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
     <h3 class="text-sm font-bold text-slate-900 dark:text-white">Entregas históricas versus projeção</h3>
-    <p id="throughput-note" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">A comparação usa períodos do mesmo tamanho do filtro.</p>
+    <p id="throughput-note" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">O Monte Carlo não usa os dias efetivos — só o horizonte em meses do filtro.</p>
     <div id="throughput-message" class="hidden mt-4 text-xs text-red-600 dark:text-red-300"></div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário conservador (85%)</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário conservador (P15)</p>
         <p id="throughput-low" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
       </div>
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mediana</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mediana (P50)</p>
         <p id="throughput-mid" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
       </div>
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário otimista (15%)</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cenário otimista (P85)</p>
         <p id="throughput-high" class="mt-1 text-2xl font-bold text-slate-900 dark:text-white">—</p>
       </div>
     </div>
     <p id="throughput-scope" class="text-xs text-slate-500 dark:text-slate-400 mt-4 mb-4"></p>
     <div class="h-64"><canvas id="comparisonChart"></canvas></div>
-    <div id="throughput-history" class="hidden">
+    <div id="throughput-history">
       <h3 class="text-sm font-bold text-slate-900 dark:text-white mt-6">Histórico usado nas simulações</h3>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Cards entregues em cada mês do histórico. Este gráfico não é a projeção.</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 mb-4">Cards entregues em cada mês do histórico (6 meses fechados). Este gráfico não é a projeção.</p>
       <div class="h-64"><canvas id="throughputChart"></canvas></div>
     </div>
   </div>
@@ -75,7 +107,16 @@ window.CapacityModule = (function() {
   var chart = null;
   var comparisonChart = null;
   var throughputChart = null;
-  var state = { meses: [], historico: [], comparacao: null, jornada: 7.5 };
+  var state = {
+    meses: [],
+    historico: [],
+    comparacao: null,
+    jornada: 7.5,
+    totalHours: null,
+    forecastMedian: null,
+    hasResult: false,
+    loading: false
+  };
   var monthNames = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
   function pad(n) {
@@ -128,6 +169,43 @@ window.CapacityModule = (function() {
       text: dark ? '#e2e8f0' : '#334155',
       grid: dark ? '#334155' : '#e2e8f0'
     };
+  }
+
+  function setLoading(isLoading) {
+    state.loading = !!isLoading;
+    var btn = document.getElementById('capacity-submit');
+    if (btn) {
+      btn.disabled = state.loading;
+      btn.textContent = state.loading ? 'Consultando…' : 'Consultar';
+    }
+  }
+
+  function clearCapacityCards() {
+    ['capacity-total', 'capacity-period', 'capacity-cards-per-day',
+      'capacity-wf-base', 'capacity-wf-feriados', 'capacity-wf-ausencias',
+      'capacity-wf-batman', 'capacity-wf-rituais', 'capacity-wf-total'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = '…';
+    });
+  }
+
+  function updateCardsPerDay() {
+    var el = document.getElementById('capacity-cards-per-day');
+    if (!el) return;
+    var days = hoursToDays(state.totalHours);
+    if (!state.totalHours && state.totalHours !== 0) {
+      el.textContent = '—';
+      return;
+    }
+    if (!(days > 0) || state.forecastMedian === null || state.forecastMedian === undefined) {
+      el.textContent = '—';
+      return;
+    }
+    var rate = Number(state.forecastMedian) / days;
+    el.textContent = rate.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
   }
 
   function renderChart() {
@@ -287,6 +365,7 @@ window.CapacityModule = (function() {
 
   function renderForecast(data) {
     state.historico = data.historico || [];
+    state.forecastMedian = Number(data.mediana) || 0;
     document.getElementById('throughput-low').textContent = formatCards(data.peloMenos);
     document.getElementById('throughput-mid').textContent = formatCards(data.mediana);
     document.getElementById('throughput-high').textContent = formatCards(data.teto);
@@ -309,9 +388,9 @@ window.CapacityModule = (function() {
       mediana: mediana
     };
     var tamanho = horizon === 1 ? '1 mês' : horizon + ' meses';
-    var note = 'Comparação em períodos de ' + tamanho +
-      '. O intervalo projetado foi obtido em ' + formatCards(data.simulacoes || 10000) +
-      ' simulações com base no throughput de ' + monthLabel(data.historicoInicio) +
+    var note = 'O Monte Carlo não usa os dias efetivos — só o horizonte (' + tamanho +
+      '). Intervalo obtido em ' + formatCards(data.simulacoes || 10000) +
+      ' simulações com throughput de ' + monthLabel(data.historicoInicio) +
       ' a ' + monthLabel(data.historicoFim) + '.';
     if (!data.mesesCheios) {
       note += ' O período filtrado não fecha meses inteiros: a previsão usa meses cheios e a capacidade usa os dias escolhidos.';
@@ -322,15 +401,9 @@ window.CapacityModule = (function() {
       '. Cada mês entra nas simulações com o mesmo peso. Resultado de ' +
       formatCards(data.simulacoes || 10000) +
       ' simulações. (somente os tipos Story e Technical Story; cancelados ficam de fora)';
-    var historyBox = document.getElementById('throughput-history');
-    historyBox.classList.toggle('hidden', horizon === 1);
     renderComparisonChart();
-    if (horizon > 1) {
-      renderThroughputChart();
-    } else if (throughputChart) {
-      throughputChart.destroy();
-      throughputChart = null;
-    }
+    renderThroughputChart();
+    updateCardsPerDay();
   }
 
   function showForecastMessage(message) {
@@ -341,10 +414,19 @@ window.CapacityModule = (function() {
 
   function render(data) {
     state.meses = data.meses || [];
+    state.totalHours = Number(data.total) || 0;
     if (Number(data.jornada) > 0) state.jornada = Number(data.jornada);
     document.getElementById('capacity-total').textContent = formatDays(data.total);
     document.getElementById('capacity-period').textContent = data.inicio + ' → ' + data.fim;
-    document.getElementById('capacity-rituals').textContent = formatDays(data.rituais);
+    var d = data.descontos || {};
+    document.getElementById('capacity-wf-base').textContent = formatDays(d.base);
+    document.getElementById('capacity-wf-feriados').textContent = formatDays(d.feriados);
+    document.getElementById('capacity-wf-ausencias').textContent = formatDays(d.ausencias);
+    document.getElementById('capacity-wf-batman').textContent = formatDays(d.batman);
+    document.getElementById('capacity-wf-rituais').textContent = formatDays(d.rituais != null ? d.rituais : data.rituais);
+    document.getElementById('capacity-wf-total').textContent = formatDays(data.total);
+    state.hasResult = true;
+    updateCardsPerDay();
     renderChart();
   }
 
@@ -366,10 +448,13 @@ window.CapacityModule = (function() {
           render(response);
         } catch (e) {
           showMessage('Resposta inválida do servidor.');
+        } finally {
+          maybeFinishLoading('hours');
         }
       })
       .withFailureHandler(function(err) {
         showMessage(err && err.message ? err.message : 'Falha no servidor.');
+        maybeFinishLoading('hours');
       })
       .getCapacity({ inicio: inicio, fim: fim });
   }
@@ -393,6 +478,8 @@ window.CapacityModule = (function() {
           renderForecast(response);
         } catch (e) {
           showForecastMessage('Resposta inválida do servidor.');
+        } finally {
+          maybeFinishLoading('forecast');
         }
       })
       .withFailureHandler(function(err) {
@@ -400,8 +487,15 @@ window.CapacityModule = (function() {
         document.getElementById('throughput-mid').textContent = '—';
         document.getElementById('throughput-high').textContent = '—';
         showForecastMessage(err && err.message ? err.message : 'Falha no servidor.');
+        maybeFinishLoading('forecast');
       })
       .getThroughputForecast({ inicio: inicio, fim: fim });
+  }
+
+  var pending = { hours: false, forecast: false };
+  function maybeFinishLoading(key) {
+    pending[key] = false;
+    if (!pending.hours && !pending.forecast) setLoading(false);
   }
 
   function load() {
@@ -422,6 +516,11 @@ window.CapacityModule = (function() {
       return;
     }
 
+    clearCapacityCards();
+    state.forecastMedian = null;
+    setLoading(true);
+    pending.hours = true;
+    pending.forecast = true;
     loadHours(inicio, fim);
     loadForecast(inicio, fim);
   }
@@ -442,15 +541,19 @@ window.CapacityModule = (function() {
         if (view && !view.classList.contains('hidden')) {
           renderChart();
           renderComparisonChart();
-          if (state.comparacao && document.getElementById('throughput-history') && !document.getElementById('throughput-history').classList.contains('hidden')) {
-            renderThroughputChart();
-          }
+          renderThroughputChart();
         }
+      });
+      window.addEventListener('vdCore:absenceChanged', function() {
+        state.hasResult = false;
+      });
+      window.addEventListener('vdCore:ritualsChanged', function() {
+        state.hasResult = false;
       });
     },
     show: function() {
-      applyCurrentMonth();
-      load();
+      if (!document.getElementById('capacity-inicio').value) applyCurrentMonth();
+      if (!state.hasResult) load();
     }
   };
 })();
