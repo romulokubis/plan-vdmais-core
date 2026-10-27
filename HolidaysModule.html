@@ -100,6 +100,16 @@ window.HolidaysModule = (function() {
     container.innerHTML = html;
   }
 
+  function loadingStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function loadingDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function fetchHolidaysData(year) {
     var targetYear = year || state.selectedYear;
     var container = document.getElementById('holidaysListContainer');
@@ -113,6 +123,7 @@ window.HolidaysModule = (function() {
       return;
     }
 
+    loadingStart('Carregando feriados…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -126,9 +137,11 @@ window.HolidaysModule = (function() {
         } catch(e) {
           if (container) container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Erro no parse: ' + e.toString() + '</p>';
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         if (container) container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Falha no servidor: ' + err.message + '</p>';
+        loadingDone();
       })
       .getFeriados(targetYear);
   }

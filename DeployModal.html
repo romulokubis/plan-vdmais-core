@@ -213,10 +213,15 @@ window.DeployModal = (function() {
       return;
     }
 
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start('Salvando deploy…');
+    else if (window.VdLoading) window.VdLoading.start('Salvando deploy…');
+
     google.script.run
       .withSuccessHandler(function(responseStr) {
         btnSubmit.disabled = false;
         btnSubmit.innerText = 'Confirmar Agendamento';
+        if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+        else if (window.VdLoading) window.VdLoading.done();
         try {
           var resp = JSON.parse(responseStr);
           if (resp.success) {
@@ -235,6 +240,8 @@ window.DeployModal = (function() {
       .withFailureHandler(function(err) {
         btnSubmit.disabled = false;
         btnSubmit.innerText = 'Confirmar Agendamento';
+        if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+        else if (window.VdLoading) window.VdLoading.done();
         showMessage('Falha no servidor: ' + err.message, true);
       })[serverMethod](payload);
   }

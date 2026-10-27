@@ -178,6 +178,7 @@ window.CalendarModule = (function() {
       return;
     }
 
+    loadingStart('Removendo deploy…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -190,9 +191,11 @@ window.CalendarModule = (function() {
         } catch(e) {
           alert('Erro ao processar resposta do servidor.');
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         alert('Falha no servidor: ' + err.message);
+        loadingDone();
       })
       .deleteDeploySchedule(id);
   }
@@ -292,6 +295,16 @@ window.CalendarModule = (function() {
       '</div>';
   }
 
+  function loadingStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function loadingDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function fetchDeploysData() {
     var container = document.getElementById('releasesListContainer');
     if (container) {
@@ -310,6 +323,7 @@ window.CalendarModule = (function() {
       return;
     }
 
+    loadingStart('Carregando deploys…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -323,9 +337,11 @@ window.CalendarModule = (function() {
         } catch (e) {
           showFetchError('Resposta inválida do servidor ao carregar deploys.');
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         showFetchError(err && err.message ? err.message : 'Falha no servidor ao carregar deploys.');
+        loadingDone();
       })
       .getDeploysScheduled();
   }

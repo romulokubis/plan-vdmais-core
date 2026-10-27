@@ -171,6 +171,16 @@ window.CapacityModule = (function() {
     };
   }
 
+  function pulseStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function pulseDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function setLoading(isLoading) {
     state.loading = !!isLoading;
     var btn = document.getElementById('capacity-submit');
@@ -495,6 +505,7 @@ window.CapacityModule = (function() {
   var pending = { hours: false, forecast: false };
   function maybeFinishLoading(key) {
     pending[key] = false;
+    pulseDone();
     if (!pending.hours && !pending.forecast) setLoading(false);
   }
 
@@ -521,6 +532,8 @@ window.CapacityModule = (function() {
     setLoading(true);
     pending.hours = true;
     pending.forecast = true;
+    pulseStart('Calculando capacidade…');
+    pulseStart('Consultando previsão de cards…');
     loadHours(inicio, fim);
     loadForecast(inicio, fim);
   }

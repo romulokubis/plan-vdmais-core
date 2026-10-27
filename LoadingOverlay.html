@@ -1,0 +1,257 @@
+<!-- vd+ Pulse Overlay — loading global -->
+<div id="vdPulseOverlay" class="vd-pulse-overlay" aria-hidden="true" role="status" aria-live="polite">
+  <div class="vd-pulse-panel">
+    <div class="vd-pulse-mark" aria-hidden="true">
+      <span class="vd-pulse-ring vd-pulse-ring--outer"></span>
+      <span class="vd-pulse-ring vd-pulse-ring--inner"></span>
+      <span class="vd-pulse-word">vd<span class="vd-pulse-plus">+</span></span>
+    </div>
+    <p id="vdPulseMessage" class="vd-pulse-message">Carregando…</p>
+  </div>
+</div>
+
+<style>
+  .vd-pulse-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 180ms ease, visibility 180ms ease;
+    background: rgba(248, 250, 252, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .dark .vd-pulse-overlay {
+    background: rgba(15, 23, 42, 0.78);
+  }
+
+  .vd-pulse-overlay.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .vd-pulse-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem 2rem;
+  }
+
+  .vd-pulse-mark {
+    position: relative;
+    width: 5.5rem;
+    height: 5.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .vd-pulse-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    border-top-color: #008775;
+    border-right-color: rgba(0, 135, 117, 0.35);
+  }
+
+  .dark .vd-pulse-ring {
+    border-top-color: #2dd4bf;
+    border-right-color: rgba(45, 212, 191, 0.35);
+  }
+
+  .vd-pulse-ring--outer {
+    animation: vd-pulse-spin 1.15s linear infinite;
+  }
+
+  .vd-pulse-ring--inner {
+    inset: 0.55rem;
+    border-top-color: #0d9488;
+    border-right-color: transparent;
+    border-bottom-color: rgba(13, 148, 136, 0.25);
+    animation: vd-pulse-spin 0.85s linear infinite reverse;
+  }
+
+  .dark .vd-pulse-ring--inner {
+    border-top-color: #5eead4;
+    border-bottom-color: rgba(94, 234, 212, 0.2);
+  }
+
+  .vd-pulse-word {
+    position: relative;
+    z-index: 1;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    font-weight: 800;
+    font-size: 1.35rem;
+    letter-spacing: -0.04em;
+    color: #0f172a;
+    animation: vd-pulse-breathe 1.6s ease-in-out infinite;
+  }
+
+  .dark .vd-pulse-word {
+    color: #f8fafc;
+  }
+
+  .vd-pulse-plus {
+    color: #008775;
+  }
+
+  .dark .vd-pulse-plus {
+    color: #2dd4bf;
+  }
+
+  .vd-pulse-message {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    text-align: center;
+    max-width: 16rem;
+  }
+
+  .dark .vd-pulse-message {
+    color: #94a3b8;
+  }
+
+  @keyframes vd-pulse-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes vd-pulse-breathe {
+    0%, 100% { opacity: 0.72; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vd-pulse-ring--outer,
+    .vd-pulse-ring--inner,
+    .vd-pulse-word {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+window.VdLoading = (function() {
+  var SHOW_DELAY_MS = 150;
+  var MIN_VISIBLE_MS = 300;
+  var depth = 0;
+  var showTimer = null;
+  var shownAt = 0;
+  var hideTimer = null;
+  var lastMessage = 'Carregando…';
+
+  function el() {
+    return document.getElementById('vdPulseOverlay');
+  }
+
+  function msgEl() {
+    return document.getElementById('vdPulseMessage');
+  }
+
+  function setMessage(message) {
+    lastMessage = message || 'Carregando…';
+    var node = msgEl();
+    if (node) node.textContent = lastMessage;
+  }
+
+  function showNow() {
+    var overlay = el();
+    if (!overlay) return;
+    setMessage(lastMessage);
+    overlay.classList.add('is-active');
+    overlay.setAttribute('aria-hidden', 'false');
+    shownAt = Date.now();
+  }
+
+  function hideNow() {
+    var overlay = el();
+    if (!overlay) return;
+    overlay.classList.remove('is-active');
+    overlay.setAttribute('aria-hidden', 'true');
+    shownAt = 0;
+  }
+
+  function start(message) {
+    if (hideTimer) {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+    }
+    depth += 1;
+    if (message) setMessage(message);
+    else setMessage(lastMessage);
+
+    if (depth === 1) {
+      if (showTimer) clearTimeout(showTimer);
+      showTimer = setTimeout(function() {
+        showTimer = null;
+        if (depth > 0) showNow();
+      }, SHOW_DELAY_MS);
+    } else {
+      setMessage(message || lastMessage);
+    }
+  }
+
+  function done() {
+    if (depth <= 0) {
+      depth = 0;
+      return;
+    }
+    depth -= 1;
+    if (depth > 0) return;
+
+    if (showTimer) {
+      clearTimeout(showTimer);
+      showTimer = null;
+      hideNow();
+      return;
+    }
+
+    var overlay = el();
+    if (!overlay || !overlay.classList.contains('is-active')) {
+      hideNow();
+      return;
+    }
+
+    var elapsed = Date.now() - shownAt;
+    var wait = Math.max(0, MIN_VISIBLE_MS - elapsed);
+    hideTimer = setTimeout(function() {
+      hideTimer = null;
+      if (depth === 0) hideNow();
+    }, wait);
+  }
+
+  function reset() {
+    depth = 0;
+    if (showTimer) clearTimeout(showTimer);
+    if (hideTimer) clearTimeout(hideTimer);
+    showTimer = null;
+    hideTimer = null;
+    hideNow();
+  }
+
+  window.addEventListener('vdCore:loading', function(e) {
+    start(e && e.detail && e.detail.message ? e.detail.message : '');
+  });
+
+  window.addEventListener('vdCore:loadingDone', function() {
+    done();
+  });
+
+  return {
+    start: start,
+    done: done,
+    reset: reset,
+    isActive: function() { return depth > 0; }
+  };
+})();
+</script>

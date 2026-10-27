@@ -404,6 +404,16 @@ window.AbsencesModule = (function() {
     tbody.innerHTML = html;
   }
 
+  function loadingStart(message) {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.start(message);
+    else if (window.VdLoading) window.VdLoading.start(message);
+  }
+
+  function loadingDone() {
+    if (window.AppShell && window.AppShell.loading) window.AppShell.loading.done();
+    else if (window.VdLoading) window.VdLoading.done();
+  }
+
   function fetchMembers() {
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.members = state.email
@@ -434,6 +444,7 @@ window.AbsencesModule = (function() {
       return;
     }
 
+    loadingStart('Carregando ausências…');
     google.script.run
       .withSuccessHandler(function(responseStr) {
         try {
@@ -449,11 +460,13 @@ window.AbsencesModule = (function() {
             tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Erro ao processar resposta.</td></tr>';
           }
         }
+        loadingDone();
       })
       .withFailureHandler(function(err) {
         if (tbody) {
           tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Falha no servidor: ' + escapeHtml(err.message) + '</td></tr>';
         }
+        loadingDone();
       })
       .getAbsences();
   }
