@@ -2913,24 +2913,40 @@ function rangesIntersect(aStart, aEnd, bStart, bEnd) {
   return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
 }
 
+function overlapInclusiveDays(aStart, aEnd, bStart, bEnd) {
+  var from = Math.max(aStart.getTime(), bStart.getTime());
+  var to = Math.min(aEnd.getTime(), bEnd.getTime());
+  if (to < from) return 0;
+  return Math.floor((to - from) / 86400000) + 1;
+}
+
+/**
+ * Um Batman por release: turno da escala com maior sobreposição na janela.
+ * Empate → quem cobre a Data_Inicio da release; depois o turno que começa antes.
+ */
 function batmansForWindow(turns, start, end) {
-  var seen = {};
-  var list = [];
-  var covering = [];
+  var best = null;
+  var bestDays = -1;
   turns.forEach(function(t) {
     if (!rangesIntersect(start, end, t.dataInicio, t.dataFim)) return;
-    covering.push(t);
+    var days = overlapInclusiveDays(start, end, t.dataInicio, t.dataFim);
+    if (days <= 0) return;
+    var coversStart = t.dataInicio.getTime() <= start.getTime() && start.getTime() <= t.dataFim.getTime();
+    var better = false;
+    if (!best || days > bestDays) {
+      better = true;
+    } else if (days === bestDays) {
+      var bestCoversStart = best.dataInicio.getTime() <= start.getTime() && start.getTime() <= best.dataFim.getTime();
+      if (coversStart && !bestCoversStart) better = true;
+      else if (coversStart === bestCoversStart && t.dataInicio.getTime() < best.dataInicio.getTime()) better = true;
+    }
+    if (better) {
+      best = t;
+      bestDays = days;
+    }
   });
-  covering.sort(function(a, b) {
-    return a.dataInicio.getTime() - b.dataInicio.getTime();
-  });
-  covering.forEach(function(t) {
-    var key = normalizePlace(t.email || t.nome);
-    if (!key || seen[key]) return;
-    seen[key] = true;
-    list.push({ email: t.email, nome: t.nome });
-  });
-  return list;
+  if (!best) return [];
+  return [{ email: best.email, nome: best.nome }];
 }
 
 function serializeEscalaTurns(turns) {

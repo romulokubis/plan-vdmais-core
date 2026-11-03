@@ -433,11 +433,14 @@ window.ReleasesControlModule = (function() {
 
       var markers = document.createElement('div');
       markers.className = 'mt-auto flex flex-col gap-0.5 pt-0.5 min-h-[1.35rem]';
-      // Um único Batman por dia (plantão da escala), só se o dia estiver em alguma release
-      if (!weekend && dayHasRelease(day, monthReleases)) {
+      // Batman só em dia útil com release (sem fim de semana, feriado P1, ponte ou recesso)
+      if (isCountable(day, hmap) && dayHasRelease(day, monthReleases)) {
         var onDuty = batmanOnDay(day);
         if (onDuty) {
-          markers.insertAdjacentHTML('beforeend', batmanChip(onDuty.nome || onDuty.email, 'Batman no dia: ' + (onDuty.nome || onDuty.email)));
+          markers.insertAdjacentHTML(
+            'beforeend',
+            batmanChip(onDuty.nome || onDuty.email, 'Batman no dia útil: ' + (onDuty.nome || onDuty.email))
+          );
         }
       }
       cell.appendChild(markers);
@@ -464,9 +467,9 @@ window.ReleasesControlModule = (function() {
         : '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-200 text-slate-600 dark:border-slate-600 dark:text-slate-300">Manual</span>';
       var batsArr = r.batmans || [];
       var bats = batsArr.length
-        ? '<p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1 mt-2">Batman(s) na janela</p>' +
+        ? '<p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1 mt-2">Batman na janela</p>' +
           '<div class="flex flex-wrap gap-1">' + batsArr.map(function(b) {
-            return '<span class="rc-chip rc-chip-batman" title="Turno que cruza a janela"><img class="rc-bat" src="' + BAT_SRC + '" alt=""><span>' + escapeHtml(b.nome || b.email) + '</span></span>';
+            return '<span class="rc-chip rc-chip-batman" title="Batman da release (maior cobertura na janela)"><img class="rc-bat" src="' + BAT_SRC + '" alt=""><span>' + escapeHtml(b.nome || b.email) + '</span></span>';
           }).join('') + '</div>'
         : '';
       var hols = (r.feriadosNaJanela || []).map(function(h) {
