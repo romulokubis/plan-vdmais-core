@@ -218,41 +218,63 @@ window.ReleasesControlModule = (function() {
     }
   }
 
+  function releaseTouchesViewMonth(r) {
+    if (r && r.touchesMonth === true) return true;
+    if (r && r.touchesMonth === false) return false;
+    var start = parseBr(r.dataInicio);
+    var end = parseBr(r.dataFim);
+    if (!start || !end) return false;
+    var monthStart = new Date(state.year, state.month, 1);
+    var monthEnd = new Date(state.year, state.month + 1, 0);
+    return start.getTime() <= monthEnd.getTime() && monthStart.getTime() <= end.getTime();
+  }
+
   function fetchData() {
     loading('Carregando releases…');
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.releases = [];
       state.feriadosMes = [];
+      state.loadError = '';
       render();
       loadingDone();
       return;
     }
     google.script.run
       .withSuccessHandler(function(raw) {
+        state.loadError = '';
         try {
-          var resp = JSON.parse(raw);
-          if (resp.success) {
+          var resp = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (resp && resp.success) {
             state.releases = resp.data || [];
             state.feriadosMes = resp.feriadosMes || [];
+            state.totalAtivas = resp.totalAtivas || state.releases.length;
+            render();
           } else {
             state.releases = [];
             state.feriadosMes = [];
-            document.getElementById('rcReleasesList').innerHTML =
-              '<div class="rounded-xl border border-rose-200 dark:border-rose-800 p-4 text-xs text-rose-600">' +
-              (resp.message || 'Erro ao carregar') + '</div>';
+            state.loadError = (resp && resp.message) ? resp.message : 'Erro ao carregar';
+            renderError(state.loadError);
           }
         } catch (e) {
           state.releases = [];
+          state.loadError = 'Resposta inválida do servidor';
+          renderError(state.loadError);
         }
-        render();
         loadingDone();
       })
       .withFailureHandler(function(err) {
         loadingDone();
-        document.getElementById('rcReleasesList').innerHTML =
-          '<div class="rounded-xl border border-rose-200 p-4 text-xs text-rose-600">' + (err && err.message ? err.message : err) + '</div>';
+        state.loadError = err && err.message ? err.message : String(err);
+        renderError(state.loadError);
       })
       .getReleaseControls(yearMonth());
+  }
+
+  function renderError(message) {
+    document.getElementById('rcListCount').textContent = '0';
+    document.getElementById('rcReleasesList').innerHTML =
+      '<div class="rounded-xl border border-rose-200 dark:border-rose-800 p-4 text-xs text-rose-600">' +
+      escapeHtml(message || 'Erro ao carregar') + '</div>';
   }
 
   function notifyChanged() {
@@ -306,7 +328,7 @@ window.ReleasesControlModule = (function() {
     var grid = document.getElementById('rcCalendarGrid');
     grid.innerHTML = '';
     var hmap = holidayMap();
-    var monthReleases = state.releases.filter(function(r) { return r.touchesMonth; });
+    var monthReleases = state.releases.filter(releaseTouchesViewMonth);
     var first = new Date(state.year, state.month, 1);
     var startPad = first.getDay();
     var dim = new Date(state.year, state.month + 1, 0).getDate();
@@ -385,11 +407,15 @@ window.ReleasesControlModule = (function() {
   }
 
   function renderList() {
-    var items = state.releases.filter(function(r) { return r.touchesMonth; });
+    var items = state.releases.filter(releaseTouchesViewMonth);
     document.getElementById('rcListCount').textContent = String(items.length);
     var box = document.getElementById('rcReleasesList');
     if (!items.length) {
-      box.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center text-xs text-slate-400">Nenhuma release neste mês.</div>';
+      var total = state.releases.length;
+      var hint = total
+        ? 'Há ' + total + ' release(s) ativa(s), mas nenhuma cruza ' + MONTHS[state.month] + ' de ' + state.year + '. Navegue o mês ou cadastre/importe com janela neste período.'
+        : 'Nenhuma release ativa na aba Controle_Releases. Cadastre manualmente ou use Importar da Businessmap.';
+      box.innerHTML = '<div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center text-xs text-slate-400">' + hint + '</div>';
       return;
     }
     box.innerHTML = items.map(function(r, idx) {

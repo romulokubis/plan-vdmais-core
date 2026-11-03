@@ -161,8 +161,13 @@ function formatSheetDate(dateObj) {
 }
 
 function parseSheetDate(str) {
-  if (!str) return null;
+  if (str === null || str === undefined || str === '') return null;
+  if (Object.prototype.toString.call(str) === '[object Date]' && !isNaN(str.getTime())) {
+    return new Date(str.getFullYear(), str.getMonth(), str.getDate());
+  }
   str = String(str).trim();
+  // Remove horário exibido (ex.: "03/11/2026 00:00:00")
+  str = str.replace(/\s+\d{1,2}:\d{2}(:\d{2})?.*$/, '');
   var iso = str.indexOf('-') !== -1;
   var parts = iso ? str.split('-') : str.split('/');
   if (parts.length !== 3) return null;
@@ -181,7 +186,25 @@ function parseSheetDate(str) {
   }
 
   if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+  if (month < 0 || month > 11 || day < 1 || day > 31) return null;
   return new Date(year, month, day);
+}
+
+/** Converte célula da planilha (Date ou texto) para DD/MM/AAAA. */
+function cellToSheetDateString(value, displayFallback) {
+  // Preferir o texto exibido: evita erro de fuso quando getValues() devolve Date UTC.
+  var fromDisplay = parseSheetDate(displayFallback);
+  if (fromDisplay) return formatSheetDate(fromDisplay);
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    try {
+      return Utilities.formatDate(value, Session.getScriptTimeZone() || 'America/Sao_Paulo', 'dd/MM/yyyy');
+    } catch (e) {
+      return formatSheetDate(new Date(value.getFullYear(), value.getMonth(), value.getDate()));
+    }
+  }
+  var fromValue = parseSheetDate(value);
+  if (fromValue) return formatSheetDate(fromValue);
+  return String(displayFallback || value || '').trim();
 }
 
 function startOfToday() {
@@ -2845,22 +2868,26 @@ function nowSheetDateTime() {
 
 function loadControleReleaseRows(ss) {
   var sheet = ensureControleReleasesSheet(ss);
-  var data = sheet.getDataRange().getDisplayValues();
+  var range = sheet.getDataRange();
+  var values = range.getValues();
+  var displays = range.getDisplayValues();
   var rows = [];
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    if (!row || !row[0]) continue;
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    var disp = displays[i] || [];
+    var id = String(disp[0] || row[0] || '').trim();
+    if (!id) continue;
     rows.push({
       sheetRow: i + 1,
-      id: String(row[0] || '').trim(),
-      releaseTribo: String(row[1] || '').trim(),
-      dataInicio: String(row[2] || '').trim(),
-      dataFim: String(row[3] || '').trim(),
-      origem: String(row[4] || 'Manual').trim() || 'Manual',
-      businessmapCardId: String(row[5] || '').trim(),
-      status: String(row[6] || 'Ativo').trim() || 'Ativo',
-      observacao: String(row[7] || '').trim(),
-      atualizadoEm: String(row[8] || '').trim()
+      id: id,
+      releaseTribo: String(disp[1] || row[1] || '').trim(),
+      dataInicio: cellToSheetDateString(row[2], disp[2]),
+      dataFim: cellToSheetDateString(row[3], disp[3]),
+      origem: String(disp[4] || row[4] || 'Manual').trim() || 'Manual',
+      businessmapCardId: String(disp[5] || row[5] || '').trim(),
+      status: String(disp[6] || row[6] || 'Ativo').trim() || 'Ativo',
+      observacao: String(disp[7] || row[7] || '').trim(),
+      atualizadoEm: String(disp[8] || row[8] || '').trim()
     });
   }
   return { sheet: sheet, rows: rows };
@@ -2902,20 +2929,24 @@ function batmansForWindow(turns, start, end) {
 function loadPriority1HolidayMap(years) {
   var map = {};
   years.forEach(function(year) {
-    var parsed = JSON.parse(getFeriados(year));
-    if (!parsed || !parsed.success || !parsed.data) return;
-    parsed.data.forEach(function(item) {
-      if (!item.bloqueiaDeploy) return;
-      var d = parseSheetDate(item.data);
-      if (!d) return;
-      var key = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-      map[key] = {
-        data: formatSheetDate(d),
-        nome: item.nome || 'Feriado',
-        curto: shortHolidayName(item.nome || 'Feriado'),
-        tipo: item.tipo || 'feriado'
-      };
-    });
+    try {
+      var parsed = JSON.parse(getFeriados(year));
+      if (!parsed || !parsed.success || !parsed.data) return;
+      parsed.data.forEach(function(item) {
+        if (!item.bloqueiaDeploy) return;
+        var d = parseSheetDate(item.data);
+        if (!d) return;
+        var key = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        map[key] = {
+          data: formatSheetDate(d),
+          nome: item.nome || 'Feriado',
+          curto: shortHolidayName(item.nome || 'Feriado'),
+          tipo: item.tipo || 'feriado'
+        };
+      });
+    } catch (e) {
+      Logger.log('[ControleReleases] feriados ' + year + ': ' + e.toString());
+    }
   });
   return map;
 }
@@ -2998,11 +3029,16 @@ function getReleaseControls(yearMonth) {
     });
 
     var releases = [];
+    var skippedInvalid = 0;
     loaded.rows.forEach(function(item) {
       if (String(item.status).toLowerCase() === 'cancelado') return;
       var start = parseSheetDate(item.dataInicio);
       var end = parseSheetDate(item.dataFim);
-      if (!start || !end) return;
+      if (!start || !end) {
+        skippedInvalid++;
+        Logger.log('[ControleReleases] datas inválidas em ' + item.id + ': ' + item.dataInicio + ' / ' + item.dataFim);
+        return;
+      }
 
       var touchesMonth = rangesIntersect(start, end, monthStart, monthEnd);
       releases.push({
@@ -3018,7 +3054,7 @@ function getReleaseControls(yearMonth) {
         diasUteis: countBusinessDaysInWindow(start, end, holidayMap),
         batmans: batmansForWindow(turns, start, end),
         feriadosNaJanela: holidaysInWindow(start, end, holidayMap),
-        touchesMonth: touchesMonth
+        touchesMonth: !!touchesMonth
       });
     });
 
@@ -3030,6 +3066,8 @@ function getReleaseControls(yearMonth) {
       success: true,
       yearMonth: viewYear + '-' + pad2(viewMonth + 1),
       feriadosMes: monthHolidays,
+      totalAtivas: releases.length,
+      skippedInvalid: skippedInvalid,
       data: releases
     });
   } catch (e) {
