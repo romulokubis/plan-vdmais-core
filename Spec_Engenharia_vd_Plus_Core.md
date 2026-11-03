@@ -166,7 +166,7 @@ Uma linha é a **release tribal** (janela de desenvolvimento), independente do d
 
 Criar / editar / cancelar pela aba **Controle de Releases**, quem tem `canEdit`. Cancelar é exclusão lógica (`Status = Cancelado`).
 
-Import Businessmap (board `879`, workflow `8641`): dry-run obrigatório; na confirmação **cria** releases ausentes e **atualiza** `Data_Inicio`/`Data_Fim`/`Businessmap_Card_Id`/`Origem` das ativas casadas por `releaseMatchKey`. Não altera `Observacao` nem reativa cancelados. Datas preferem campos do card; se faltarem, parse do intervalo no título (ex.: `Release 5.18 (29/09 a 12/10)`).
+Import Businessmap (board `879`, workflow `8641`): dry-run obrigatório lista **todas** as releases elegíveis (criar / atualizar / ignorar). Na confirmação o usuário **seleciona** quais aplicar; o servidor revalida e só **cria**/**atualiza** as marcadas (`Data_Inicio`/`Data_Fim`/`Businessmap_Card_Id`/`Origem`). Não altera `Observacao` nem reativa cancelados. Datas preferem campos do card; se faltarem, parse do intervalo no título (ex.: `Release 5.18 (29/09 a 12/10)`).
 
 Batman **não** é coluna: a UI deriva quem está de plantão cruzando a janela com `Escala_Sustentacao`.
 
@@ -287,7 +287,7 @@ A tela é **híbrida**:
 1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta no dia e **não entram** na contagem de dias úteis da janela.
 2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela, Batman(s) da escala (turnos de **2 semanas** que cruzam a janela), editar/cancelar se `canEdit`.
 
-Ações: **Nova release**, **Importar da Businessmap** (prévia → confirmar). Na grade, o chip de Batman é **um por dia** (quem está no turno de 2 semanas da escala naquele dia), com logo + nome. Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
+Ações: **Nova release**, **Importar da Businessmap** (prévia com checkboxes → importar selecionadas). Na grade, o chip de Batman é **um por dia** (quem está no turno de 2 semanas da escala naquele dia), com logo + nome em etiqueta clara (fundo âmbar claro). Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
 
 Backend: `getReleaseControls`, `saveReleaseControl`, `updateReleaseControl`, `cancelReleaseControl`, `previewImportReleasesFromBusinessmap`, `confirmImportReleasesFromBusinessmap`.
 
