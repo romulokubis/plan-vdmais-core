@@ -44,7 +44,8 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 5. Dry-run obrigatório; confirmação envia `createCardIds` + `updateIds` selecionados; servidor revalida e aplica **somente** esses itens ainda elegíveis.
 6. Atualização BM: datas + card id + origem; não altera `Observacao`.
 7. Dias úteis excluem Sáb/Dom e feriados/pontes com `bloqueiaDeploy`.
-8. Batman só na UI (cruzamento com escala). A escala atual é rodízio por **turno de 2 semanas**, não plantão diário. Visão futura (hub): **um Batman por release**, com duração alinhada à janela da release (~2 semanas).
+8. Feriado/ponte/recesso P1 que cai em **Sáb/Dom** não aparece na grade nem em `feriadosNaJanela` (sem atuação no fim de semana).
+9. Batman só na UI (cruzamento com escala). A escala atual é rodízio por **turno de 2 semanas**, não plantão diário. Visão futura (hub): **um Batman por release**, com duração alinhada à janela da release (~2 semanas).
 
 ## Dados
 

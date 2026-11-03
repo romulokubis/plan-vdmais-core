@@ -2970,6 +2970,8 @@ function loadPriority1HolidayMap(years) {
         if (!item.bloqueiaDeploy) return;
         var d = parseSheetDate(item.data);
         if (!d) return;
+        // Sem atuação no fim de semana: não exibir feriado/recesso que cai em Sáb/Dom.
+        if (isWeekendDate(d)) return;
         var key = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
         map[key] = {
           data: formatSheetDate(d),
