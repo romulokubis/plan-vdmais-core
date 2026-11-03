@@ -284,8 +284,8 @@ Módulo paralelo ao Calendário de Deploy. Persiste em `Controle_Releases`. Não
 
 A tela é **híbrida**:
 
-1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta no dia e **não entram** na contagem de dias úteis da janela.
-2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela, **um** Batman da escala (turno de **2 semanas** com maior cobertura na janela; empate favorece quem cobre o início), editar/cancelar se `canEdit`.
+1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados/pontes/recesso P1 (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta **somente se caírem em dia útil** — feriado em Sáb/Dom **não é exibido** neste módulo — e **não entram** na contagem de dias úteis da janela.
+2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela (só dia útil), **um** Batman da escala (turno de **2 semanas** com maior cobertura na janela; empate favorece quem cobre o início), editar/cancelar se `canEdit`.
 
 Ações: **Nova release**, **Importar da Businessmap** (prévia com checkboxes → importar selecionadas). Na grade, o chip de Batman é **um por dia útil** (quem está no turno de 2 semanas naquele dia), com logo + nome em etiqueta clara (fundo âmbar claro). **Não aparece** em sábado, domingo, feriado/ponte de prioridade 1 nem recesso (sem atividade do time). Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
 
