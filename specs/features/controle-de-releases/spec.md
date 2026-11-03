@@ -31,7 +31,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 | UI | Grade mensal + Detalhes das releases do período |
 | Semana na grade | DOM → SÁB |
 | Contagem | Dias úteis (SEG–SEX sem feriado/ponte P1) |
-| Batman | Automático via `Escala_Sustentacao` (turno operacional = **2 semanas**; grade mostra o plantonista **do dia**; detalhes listam turnos que cruzam a janela) |
+| Batman | Automático via `Escala_Sustentacao` (turno = **2 semanas**; grade = plantonista só em **dia útil** com release — sem Sáb/Dom, feriado/ponte P1 ou recesso; detalhes = **um** Batman por release, maior cobertura na janela) |
 | Import BM | Dry-run lista todas; usuário marca quais criar/atualizar; servidor revalida e aplica só as selecionadas |
 | Logo Batman | PNG original embutido (data URI); chip com fundo âmbar claro (não preto) |
 
