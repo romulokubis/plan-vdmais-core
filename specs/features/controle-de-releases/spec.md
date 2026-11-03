@@ -31,7 +31,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 | UI | Grade mensal + Detalhes das releases do período |
 | Semana na grade | DOM → SÁB |
 | Contagem | Dias úteis (SEG–SEX sem feriado/ponte P1) |
-| Batman | Automático via `Escala_Sustentacao` |
+| Batman | Automático via `Escala_Sustentacao` (turno operacional = **2 semanas**; grade mostra o plantonista **do dia**; detalhes listam turnos que cruzam a janela) |
 | Import BM | Dry-run → criar + atualizar janelas |
 | Logo Batman | PNG original embutido (data URI) |
 
@@ -44,7 +44,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 5. Dry-run obrigatório; confirmação revalida no servidor e aplica.
 6. Atualização BM: datas + card id + origem; não altera `Observacao`.
 7. Dias úteis excluem Sáb/Dom e feriados/pontes com `bloqueiaDeploy`.
-8. Batman só na UI (cruzamento com escala).
+8. Batman só na UI (cruzamento com escala). A escala atual é rodízio por **turno de 2 semanas**, não plantão diário. Visão futura (hub): **um Batman por release**, com duração alinhada à janela da release (~2 semanas).
 
 ## Dados
 
@@ -73,3 +73,5 @@ Conforme spec de produto e implementação em `ReleasesControlModule.html` + `Co
 ## Notas de implementação
 
 Arquivos: `ReleasesControlModule.html`, `Index.html`, `Code.gs`, `Spec_Engenharia_vd_Plus_Core.md`, `specs/features/controle-de-releases/spec.md`.
+
+**Incidente (listagem vazia):** a leitura passou a chamar `cellToSheetDateString` sem a função existir no mesmo deploy; o front ainda chamava `render()` após erro e mascarava a falha. Corrigido em commit posterior — ver armadilhas em `AGENTS.md`.

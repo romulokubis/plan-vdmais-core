@@ -1352,7 +1352,7 @@ function regenerateBatmanSchedule(payload) {
       return JSON.stringify({ success: false, message: 'No máximo 52 turnos por geração.' });
     }
     var weeks = parseInt(payload && payload.duracaoSemanas, 10);
-    if (isNaN(weeks) || weeks < 1) weeks = 1;
+    if (isNaN(weeks) || weeks < 1) weeks = 2;
 
     var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
@@ -2916,14 +2916,32 @@ function rangesIntersect(aStart, aEnd, bStart, bEnd) {
 function batmansForWindow(turns, start, end) {
   var seen = {};
   var list = [];
+  var covering = [];
   turns.forEach(function(t) {
     if (!rangesIntersect(start, end, t.dataInicio, t.dataFim)) return;
-    var key = (t.email || t.nome).toLowerCase();
-    if (seen[key]) return;
+    covering.push(t);
+  });
+  covering.sort(function(a, b) {
+    return a.dataInicio.getTime() - b.dataInicio.getTime();
+  });
+  covering.forEach(function(t) {
+    var key = normalizePlace(t.email || t.nome);
+    if (!key || seen[key]) return;
     seen[key] = true;
     list.push({ email: t.email, nome: t.nome });
   });
   return list;
+}
+
+function serializeEscalaTurns(turns) {
+  return turns.map(function(t) {
+    return {
+      email: t.email,
+      nome: t.nome,
+      dataInicio: formatSheetDate(t.dataInicio),
+      dataFim: formatSheetDate(t.dataFim)
+    };
+  });
 }
 
 function loadPriority1HolidayMap(years) {
@@ -3066,6 +3084,7 @@ function getReleaseControls(yearMonth) {
       success: true,
       yearMonth: viewYear + '-' + pad2(viewMonth + 1),
       feriadosMes: monthHolidays,
+      turnosEscala: serializeEscalaTurns(turns),
       totalAtivas: releases.length,
       skippedInvalid: skippedInvalid,
       data: releases

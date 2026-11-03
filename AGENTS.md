@@ -24,6 +24,8 @@ Responda em português do Brasil.
 - Funcionalidade já descrita na spec continua funcionando depois da mudança. Se a alteração exigir refatoração grande, explique o que precisa mudar e o que permanece estável antes de reescrever o fluxo.
 - Credenciais da Businessmap ficam em Script Properties. Não grave chave ou URL em código-fonte.
 - Não altere o `DEPLOYMENT_ID` do workflow de CI sem alinhamento explícito (URL produtiva).
+- Datas na planilha: ao ler abas, preferir `getDisplayValues()` (ou helper que normalize Date+texto para `DD/MM/AAAA`). `getValues()` sozinho em células data pode deslocar o dia por fuso; se criar helper (`cellToSheetDateString` etc.), **definir e chamar no mesmo commit**.
+- UI: se a API falhar, mostre a mensagem de erro. Não chame `render()` de estado vazio em seguida (isso apaga o erro e parece “lista sem dados”).
 
 ## Documentação SDD
 

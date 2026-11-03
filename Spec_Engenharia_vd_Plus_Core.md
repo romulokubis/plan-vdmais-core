@@ -133,7 +133,7 @@ A lista de ausências ativas é visível a qualquer usuário autenticado da apli
 | Desenvolvedor_Nome | Nome exibido |
 | Data_Inicio | Início do turno |
 | Data_Fim | Fim do turno, inclusive |
-| Duracao_Semanas | Informativo |
+| Duracao_Semanas | Duração do turno em semanas (operacional: **2**) |
 | Status | `Concluído`, `Ativo` ou `Programado` |
 | Observacao | Texto livre |
 
@@ -285,15 +285,17 @@ Módulo paralelo ao Calendário de Deploy. Persiste em `Controle_Releases`. Não
 A tela é **híbrida**:
 
 1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta no dia e **não entram** na contagem de dias úteis da janela.
-2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela, Batman(s) da escala, editar/cancelar se `canEdit`.
+2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela, Batman(s) da escala (turnos de **2 semanas** que cruzam a janela), editar/cancelar se `canEdit`.
 
-Ações: **Nova release**, **Importar da Businessmap** (prévia → confirmar). Chip de Batman usa o logo do Batman (asset) + nome; não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
+Ações: **Nova release**, **Importar da Businessmap** (prévia → confirmar). Na grade, o chip de Batman é **um por dia** (quem está no turno de 2 semanas da escala naquele dia), com logo + nome. Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
 
 Backend: `getReleaseControls`, `saveReleaseControl`, `updateReleaseControl`, `cancelReleaseControl`, `previewImportReleasesFromBusinessmap`, `confirmImportReleasesFromBusinessmap`.
 
 ## Escala de sustentação
 
 O plantonista vigente é o do turno cujo intervalo `Data_Inicio`–`Data_Fim` contém a data de hoje.
+
+**Duração do turno (regra operacional atual):** cada Batman permanece **duas semanas** (`Duracao_Semanas = 2`). Não é plantão de um dia: a pessoa cobre todo o intervalo do turno. A UI pode mostrar o nome **no dia** do calendário, mas o vínculo real é o turno de duas semanas.
 
 Ao carregar a escala, o backend grava a coluna `Status` de cada turno com as duas datas preenchidas:
 
@@ -305,7 +307,9 @@ Turno sem data interpretável não é alterado. A tela mostra o plantonista vige
 
 Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Ordem_Escala`.
 
-O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (padrão 1). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros.
+O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (**padrão 2**). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros.
+
+**Evolução (hub / Controle de Releases):** no futuro, a regra tende a **um Batman por release**, com permanência alinhada à janela da release (hoje tipicamente ~duas semanas). Até lá, o Controle de Releases só **lê** a `Escala_Sustentacao` (turno de 2 semanas) e exibe quem está de plantão no dia / na janela.
 
 ## Capacidade
 
@@ -421,7 +425,7 @@ Enquanto o backend responde, o shell mostra o **vd+ Pulse Overlay** (`LoadingOve
 
 Itens detalhados em `specs/backlog/`. Em especial:
 
-- Controle de Releases como hub (centralizar deploys PT/CO, responsável/coresponsável, feriados/ausências por release) — ver `specs/backlog/controle-de-releases-hub.md`.
+- Controle de Releases como hub (centralizar deploys PT/CO, responsável/coresponsável, feriados/ausências por release; **Batman = um por release ~2 semanas**) — ver `specs/backlog/controle-de-releases-hub.md`.
 
 ## Documentação SDD
 

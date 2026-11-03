@@ -15,14 +15,14 @@ Tech Manager gera turnos futuros na `Escala_Sustentacao` sem editar a planilha �
 | Pergunta | Decisão |
 | --- | --- |
 | Apaga futuros? | Não. Só **acrescenta**. O início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. |
-| Duração padrão | 1 semana por turno (configurável no formulário, mín. 1). |
+| Duração padrão | **2 semanas** por turno (regra operacional da squad; configurável no formulário, mín. 1). |
 | Quem executa | Só `Tech Manager`. |
 
 ## Entrada
 
 - `dataInicio` (obrigatória)
 - `quantidadeTurnos` (inteiro ≥ 1)
-- `duracaoSemanas` (inteiro ≥ 1, default 1)
+- `duracaoSemanas` (inteiro ≥ 1, **default 2**)
 
 ## Regras
 
