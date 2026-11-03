@@ -12,6 +12,10 @@ Itens **ainda não** incorporados (ou só parcialmente) na spec de produto.
 
 | Item | Arquivo | Origem |
 | --- | --- | --- |
-| — | — | Nenhum no momento |
+| Controle de Releases como hub (centralização) | [`controle-de-releases-hub.md`](./controle-de-releases-hub.md) | Chat — visão futura |
 
-Itens promovidos recentemente: regenerar escala → `specs/features/regenerar-escala/`.
+Itens promovidos recentemente:
+
+- regenerar escala → `specs/features/regenerar-escala/`
+- controle de releases (fase 1) → `specs/features/controle-de-releases/` (registro em [`controle-de-releases.md`](./controle-de-releases.md))
+

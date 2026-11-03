@@ -2802,3 +2802,575 @@ function getReleaseNotes(payload) {
     return JSON.stringify({ success: false, message: e.message || e.toString() });
   }
 }
+/**
+ * ========== Controle de Releases ==========
+ * Aba Controle_Releases; Batman derivado da Escala_Sustentacao; import BM dry-run + confirm.
+ */
+
+var CONTROLE_RELEASES_HEADERS = [
+  'ID', 'Release_Tribo_VD', 'Data_Inicio', 'Data_Fim',
+  'Origem', 'Businessmap_Card_Id', 'Status', 'Observacao', 'Atualizado_Em'
+];
+
+function ensureControleReleasesSheet(ss) {
+  var sheet = ss.getSheetByName('Controle_Releases');
+  if (!sheet) {
+    sheet = ss.insertSheet('Controle_Releases');
+    sheet.appendRow(CONTROLE_RELEASES_HEADERS);
+    return sheet;
+  }
+  var header = sheet.getRange(1, 1, 1, CONTROLE_RELEASES_HEADERS.length).getDisplayValues()[0];
+  if (!String(header[0] || '').trim()) {
+    sheet.getRange(1, 1, 1, CONTROLE_RELEASES_HEADERS.length).setValues([CONTROLE_RELEASES_HEADERS]);
+  }
+  return sheet;
+}
+
+function nextControleReleaseId(sheet) {
+  var data = sheet.getDataRange().getDisplayValues();
+  var max = 0;
+  for (var i = 1; i < data.length; i++) {
+    var match = String(data[i][0] || '').trim().match(/^CR-(\d+)$/i);
+    if (!match) continue;
+    var n = parseInt(match[1], 10);
+    if (n > max) max = n;
+  }
+  return 'CR-' + padIdNumber(max + 1);
+}
+
+function nowSheetDateTime() {
+  var d = new Date();
+  return formatSheetDate(d) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+function loadControleReleaseRows(ss) {
+  var sheet = ensureControleReleasesSheet(ss);
+  var data = sheet.getDataRange().getDisplayValues();
+  var rows = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row || !row[0]) continue;
+    rows.push({
+      sheetRow: i + 1,
+      id: String(row[0] || '').trim(),
+      releaseTribo: String(row[1] || '').trim(),
+      dataInicio: String(row[2] || '').trim(),
+      dataFim: String(row[3] || '').trim(),
+      origem: String(row[4] || 'Manual').trim() || 'Manual',
+      businessmapCardId: String(row[5] || '').trim(),
+      status: String(row[6] || 'Ativo').trim() || 'Ativo',
+      observacao: String(row[7] || '').trim(),
+      atualizadoEm: String(row[8] || '').trim()
+    });
+  }
+  return { sheet: sheet, rows: rows };
+}
+
+function loadEscalaTurnsForOverlay(ss) {
+  var turns = [];
+  sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
+    var start = parseSheetDate(row[3]);
+    var end = parseSheetDate(row[4]);
+    if (!start || !end) return;
+    turns.push({
+      email: String(row[1] || '').trim(),
+      nome: String(row[2] || '').trim() || String(row[1] || '').trim(),
+      dataInicio: start,
+      dataFim: end
+    });
+  });
+  return turns;
+}
+
+function rangesIntersect(aStart, aEnd, bStart, bEnd) {
+  return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
+}
+
+function batmansForWindow(turns, start, end) {
+  var seen = {};
+  var list = [];
+  turns.forEach(function(t) {
+    if (!rangesIntersect(start, end, t.dataInicio, t.dataFim)) return;
+    var key = (t.email || t.nome).toLowerCase();
+    if (seen[key]) return;
+    seen[key] = true;
+    list.push({ email: t.email, nome: t.nome });
+  });
+  return list;
+}
+
+function loadPriority1HolidayMap(years) {
+  var map = {};
+  years.forEach(function(year) {
+    var parsed = JSON.parse(getFeriados(year));
+    if (!parsed || !parsed.success || !parsed.data) return;
+    parsed.data.forEach(function(item) {
+      if (!item.bloqueiaDeploy) return;
+      var d = parseSheetDate(item.data);
+      if (!d) return;
+      var key = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+      map[key] = {
+        data: formatSheetDate(d),
+        nome: item.nome || 'Feriado',
+        curto: shortHolidayName(item.nome || 'Feriado'),
+        tipo: item.tipo || 'feriado'
+      };
+    });
+  });
+  return map;
+}
+
+function shortHolidayName(nome) {
+  var n = String(nome || '').trim();
+  if (n.length <= 22) return n;
+  return n.slice(0, 20) + '�';
+}
+
+function ymdKey(dateObj) {
+  return dateObj.getFullYear() + '-' + pad2(dateObj.getMonth() + 1) + '-' + pad2(dateObj.getDate());
+}
+
+function isWeekendDate(dateObj) {
+  var day = dateObj.getDay();
+  return day === 0 || day === 6;
+}
+
+function countBusinessDaysInWindow(start, end, holidayMap) {
+  var n = 0;
+  var cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  var last = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  while (cur.getTime() <= last.getTime()) {
+    if (!isWeekendDate(cur) && !holidayMap[ymdKey(cur)]) n++;
+    cur = addDays(cur, 1);
+  }
+  return n;
+}
+
+function holidaysInWindow(start, end, holidayMap) {
+  var list = [];
+  Object.keys(holidayMap).forEach(function(key) {
+    var d = parseSheetDate(holidayMap[key].data);
+    if (!d) return;
+    if (d.getTime() >= start.getTime() && d.getTime() <= end.getTime()) {
+      list.push(holidayMap[key]);
+    }
+  });
+  list.sort(function(a, b) {
+    return parseSheetDate(a.data).getTime() - parseSheetDate(b.data).getTime();
+  });
+  return list;
+}
+
+/**
+ * Lista releases ativas + overlays (Batman, feriados do m�s, dias �teis).
+ * yearMonth opcional: "YYYY-MM" (filtra detalhes; grade ainda recebe feriados do m�s).
+ */
+function getReleaseControls(yearMonth) {
+  try {
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var loaded = loadControleReleaseRows(ss);
+    var turns = loadEscalaTurnsForOverlay(ss);
+
+    var viewYear = new Date().getFullYear();
+    var viewMonth = new Date().getMonth();
+    if (yearMonth && /^\d{4}-\d{2}$/.test(String(yearMonth))) {
+      var parts = String(yearMonth).split('-');
+      viewYear = parseInt(parts[0], 10);
+      viewMonth = parseInt(parts[1], 10) - 1;
+    }
+
+    var holidayMap = loadPriority1HolidayMap([viewYear, viewYear - 1, viewYear + 1]);
+    var monthStart = new Date(viewYear, viewMonth, 1);
+    var monthEnd = new Date(viewYear, viewMonth + 1, 0);
+
+    var monthHolidays = [];
+    Object.keys(holidayMap).forEach(function(key) {
+      var d = parseSheetDate(holidayMap[key].data);
+      if (!d) return;
+      if (d.getFullYear() === viewYear && d.getMonth() === viewMonth) {
+        monthHolidays.push(holidayMap[key]);
+      }
+    });
+    monthHolidays.sort(function(a, b) {
+      return parseSheetDate(a.data).getTime() - parseSheetDate(b.data).getTime();
+    });
+
+    var releases = [];
+    loaded.rows.forEach(function(item) {
+      if (String(item.status).toLowerCase() === 'cancelado') return;
+      var start = parseSheetDate(item.dataInicio);
+      var end = parseSheetDate(item.dataFim);
+      if (!start || !end) return;
+
+      var touchesMonth = rangesIntersect(start, end, monthStart, monthEnd);
+      releases.push({
+        id: item.id,
+        releaseTribo: item.releaseTribo,
+        dataInicio: formatSheetDate(start),
+        dataFim: formatSheetDate(end),
+        origem: item.origem,
+        businessmapCardId: item.businessmapCardId,
+        status: item.status,
+        observacao: item.observacao,
+        atualizadoEm: item.atualizadoEm,
+        diasUteis: countBusinessDaysInWindow(start, end, holidayMap),
+        batmans: batmansForWindow(turns, start, end),
+        feriadosNaJanela: holidaysInWindow(start, end, holidayMap),
+        touchesMonth: touchesMonth
+      });
+    });
+
+    releases.sort(function(a, b) {
+      return parseSheetDate(a.dataInicio).getTime() - parseSheetDate(b.dataInicio).getTime();
+    });
+
+    return JSON.stringify({
+      success: true,
+      yearMonth: viewYear + '-' + pad2(viewMonth + 1),
+      feriadosMes: monthHolidays,
+      data: releases
+    });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao listar releases: ' + e.toString() });
+  }
+}
+
+function validateReleaseWindowPayload(payload) {
+  var nome = String(payload && payload.releaseTribo || '').trim();
+  if (!nome) return { ok: false, message: 'Informe o nome da release (Release_Tribo_VD).' };
+  var start = parseSheetDate(payload.dataInicio);
+  var end = parseSheetDate(payload.dataFim);
+  if (!start) return { ok: false, message: 'Data de in�cio inv�lida.' };
+  if (!end) return { ok: false, message: 'Data de fim inv�lida.' };
+  if (end.getTime() < start.getTime()) {
+    return { ok: false, message: 'Data de fim n�o pode ser anterior � de in�cio.' };
+  }
+  return { ok: true, nome: nome, start: start, end: end };
+}
+
+function saveReleaseControl(payload) {
+  try {
+    if (!isUserAuthorized()) {
+      return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem cadastrar releases.' });
+    }
+    var check = validateReleaseWindowPayload(payload);
+    if (!check.ok) return JSON.stringify({ success: false, message: check.message });
+
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var sheet = ensureControleReleasesSheet(ss);
+    var id = nextControleReleaseId(sheet);
+    var stamp = nowSheetDateTime();
+    sheet.appendRow([
+      id,
+      check.nome,
+      formatSheetDate(check.start),
+      formatSheetDate(check.end),
+      'Manual',
+      '',
+      'Ativo',
+      String(payload.observacao || '').trim(),
+      stamp
+    ]);
+    return JSON.stringify({ success: true, message: 'Release cadastrada.', id: id });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao salvar: ' + e.toString() });
+  }
+}
+
+function updateReleaseControl(payload) {
+  try {
+    if (!isUserAuthorized()) {
+      return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem editar releases.' });
+    }
+    if (!payload || !payload.id) {
+      return JSON.stringify({ success: false, message: 'ID da release n�o informado.' });
+    }
+    var check = validateReleaseWindowPayload(payload);
+    if (!check.ok) return JSON.stringify({ success: false, message: check.message });
+
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var loaded = loadControleReleaseRows(ss);
+    var found = null;
+    for (var i = 0; i < loaded.rows.length; i++) {
+      if (loaded.rows[i].id === String(payload.id).trim()) {
+        found = loaded.rows[i];
+        break;
+      }
+    }
+    if (!found) return JSON.stringify({ success: false, message: 'Release ' + payload.id + ' não encontrada.' });
+    if (String(found.status).toLowerCase() === 'cancelado') {
+      return JSON.stringify({ success: false, message: 'Release cancelada n�o pode ser editada.' });
+    }
+
+    var stamp = nowSheetDateTime();
+    loaded.sheet.getRange(found.sheetRow, 1, 1, 9).setValues([[
+      found.id,
+      check.nome,
+      formatSheetDate(check.start),
+      formatSheetDate(check.end),
+      found.origem || 'Manual',
+      found.businessmapCardId || '',
+      'Ativo',
+      String(payload.observacao || '').trim(),
+      stamp
+    ]]);
+    return JSON.stringify({ success: true, message: 'Release ' + found.id + ' atualizada.' });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao atualizar: ' + e.toString() });
+  }
+}
+
+function cancelReleaseControl(id) {
+  try {
+    if (!isUserAuthorized()) {
+      return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem cancelar releases.' });
+    }
+    if (!id) return JSON.stringify({ success: false, message: 'ID da release n�o informado.' });
+
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    var loaded = loadControleReleaseRows(ss);
+    var found = null;
+    for (var i = 0; i < loaded.rows.length; i++) {
+      if (loaded.rows[i].id === String(id).trim()) {
+        found = loaded.rows[i];
+        break;
+      }
+    }
+    if (!found) return JSON.stringify({ success: false, message: 'Release ' + id + ' não encontrada.' });
+
+    loaded.sheet.getRange(found.sheetRow, 7).setValue('Cancelado');
+    loaded.sheet.getRange(found.sheetRow, 9).setValue(nowSheetDateTime());
+    return JSON.stringify({ success: true, message: 'Release ' + id + ' cancelada.' });
+  } catch (e) {
+    return JSON.stringify({ success: false, message: 'Erro ao cancelar: ' + e.toString() });
+  }
+}
+
+/**
+ * Extrai intervalo DD/MM[/AAAA] a DD/MM[/AAAA] do t�tulo do card BM.
+ */
+function parseReleaseWindowFromTitle(title, fallbackYear) {
+  var text = String(title || '');
+  var match = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*(?:a|at�|-|�|�)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/i);
+  if (!match) return null;
+  var y1 = match[3] ? parseInt(match[3], 10) : fallbackYear;
+  var y2 = match[6] ? parseInt(match[6], 10) : y1;
+  if (y1 < 100) y1 += 2000;
+  if (y2 < 100) y2 += 2000;
+  var start = new Date(y1, parseInt(match[2], 10) - 1, parseInt(match[1], 10));
+  var end = new Date(y2, parseInt(match[5], 10) - 1, parseInt(match[4], 10));
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+  if (end.getTime() < start.getTime()) {
+    end = new Date(y1 + 1, parseInt(match[5], 10) - 1, parseInt(match[4], 10));
+  }
+  return { start: start, end: end };
+}
+
+function normalizeReleaseDisplayTitle(title) {
+  var raw = String(title || '').trim();
+  var cut = raw.replace(/\s*\(.*\)\s*$/, '').trim();
+  var m = cut.match(/^(release\s*\d+(?:\s*\.\s*\d+)*)/i);
+  if (m) {
+    return m[1].replace(/\s+/g, ' ').replace(/\s*\.\s*/g, '.').replace(/^release\s+/i, 'Release ');
+  }
+  return cut || raw;
+}
+
+function listProgramacaoReleaseCards(config) {
+  var rules = releaseNoteRules();
+  var out = [];
+  var seen = {};
+  var states = ['active', 'archived'];
+  var stateIndex;
+  for (stateIndex = 0; stateIndex < states.length; stateIndex++) {
+    var page = 1;
+    var allPages = 1;
+    while (page <= allPages && page <= rules.pageCap) {
+      var payload = businessmapGet(config, '/cards', [
+        'board_ids=' + rules.releaseBoardId,
+        'state=' + states[stateIndex],
+        'per_page=1000',
+        'page=' + page,
+        'fields=' + encodeURIComponent('card_id,title,workflow_id')
+      ].join('&'));
+      var block = payload.data || {};
+      allPages = block.pagination && block.pagination.all_pages ? block.pagination.all_pages : 1;
+      businessmapRows(payload).forEach(function(card) {
+        if (card.workflow_id && String(card.workflow_id) !== String(rules.releaseWorkflowId)) return;
+        var id = String(card.card_id || '');
+        if (!id || seen[id]) return;
+        seen[id] = true;
+        out.push(card);
+      });
+      page++;
+    }
+  }
+  return out;
+}
+
+function buildBusinessmapImportPlan(ss) {
+  var config = businessmapConfig();
+  var cards = listProgramacaoReleaseCards(config);
+  var loaded = loadControleReleaseRows(ss);
+  var byKey = {};
+  loaded.rows.forEach(function(row) {
+    var key = releaseMatchKey(row.releaseTribo);
+    if (!key) return;
+    if (!byKey[key]) byKey[key] = [];
+    byKey[key].push(row);
+  });
+
+  var fallbackYear = new Date().getFullYear();
+  var toCreate = [];
+  var toUpdate = [];
+  var ignored = [];
+
+  cards.forEach(function(card) {
+    var title = String(card.title || '').trim();
+    var key = releaseMatchKey(title);
+    if (!key) {
+      ignored.push({ title: title, reason: 'T�tulo sem chave Release N.N' });
+      return;
+    }
+    var windowDates = parseReleaseWindowFromTitle(title, fallbackYear);
+    if (!windowDates) {
+      ignored.push({ title: title, reason: 'Sem intervalo de datas parse�vel no t�tulo' });
+      return;
+    }
+    var displayName = normalizeReleaseDisplayTitle(title);
+    var cardId = String(card.card_id);
+    var candidates = byKey[key] || [];
+    var active = null;
+    var i;
+    for (i = 0; i < candidates.length; i++) {
+      if (String(candidates[i].status).toLowerCase() !== 'cancelado') {
+        active = candidates[i];
+        break;
+      }
+    }
+    if (!active) {
+      toCreate.push({
+        releaseTribo: displayName,
+        dataInicio: formatSheetDate(windowDates.start),
+        dataFim: formatSheetDate(windowDates.end),
+        businessmapCardId: cardId,
+        titleBm: title
+      });
+      return;
+    }
+    var curStart = parseSheetDate(active.dataInicio);
+    var curEnd = parseSheetDate(active.dataFim);
+    var same =
+      curStart && curEnd &&
+      curStart.getTime() === windowDates.start.getTime() &&
+      curEnd.getTime() === windowDates.end.getTime() &&
+      String(active.businessmapCardId || '') === cardId;
+    if (same) {
+      ignored.push({ title: title, reason: 'J� sincronizada (' + active.id + ')' });
+      return;
+    }
+    toUpdate.push({
+      id: active.id,
+      releaseTribo: displayName,
+      dataInicio: formatSheetDate(windowDates.start),
+      dataFim: formatSheetDate(windowDates.end),
+      businessmapCardId: cardId,
+      titleBm: title,
+      dataInicioAnterior: active.dataInicio,
+      dataFimAnterior: active.dataFim
+    });
+  });
+
+  return { toCreate: toCreate, toUpdate: toUpdate, ignored: ignored };
+}
+
+function previewImportReleasesFromBusinessmap() {
+  try {
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+    ensureControleReleasesSheet(ss);
+    var plan = buildBusinessmapImportPlan(ss);
+    return JSON.stringify({
+      success: true,
+      toCreate: plan.toCreate,
+      toUpdate: plan.toUpdate,
+      ignored: plan.ignored,
+      message: 'Prévia: ' + plan.toCreate.length + ' criar, ' + plan.toUpdate.length + ' atualizar, ' + plan.ignored.length + ' ignorar.'
+    });
+  } catch (e) {
+    Logger.log('[ControleReleases] preview ' + e.toString());
+    return JSON.stringify({ success: false, message: e.message || e.toString() });
+  }
+}
+
+function confirmImportReleasesFromBusinessmap(payload) {
+  try {
+    if (!isUserAuthorized()) {
+      return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem importar releases.' });
+    }
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    // Revalida no servidor (não confia só no client)
+    var plan = buildBusinessmapImportPlan(ss);
+    var sheet = ensureControleReleasesSheet(ss);
+    var stamp = nowSheetDateTime();
+    var created = 0;
+    var updated = 0;
+
+    plan.toCreate.forEach(function(item) {
+      var id = nextControleReleaseId(sheet);
+      sheet.appendRow([
+        id,
+        item.releaseTribo,
+        item.dataInicio,
+        item.dataFim,
+        'Businessmap',
+        item.businessmapCardId,
+        'Ativo',
+        '',
+        stamp
+      ]);
+      created++;
+    });
+
+    var loaded = loadControleReleaseRows(ss);
+    plan.toUpdate.forEach(function(item) {
+      var found = null;
+      for (var i = 0; i < loaded.rows.length; i++) {
+        if (loaded.rows[i].id === item.id) {
+          found = loaded.rows[i];
+          break;
+        }
+      }
+      if (!found || String(found.status).toLowerCase() === 'cancelado') return;
+      loaded.sheet.getRange(found.sheetRow, 1, 1, 9).setValues([[
+        found.id,
+        item.releaseTribo || found.releaseTribo,
+        item.dataInicio,
+        item.dataFim,
+        'Businessmap',
+        item.businessmapCardId,
+        'Ativo',
+        found.observacao || '',
+        stamp
+      ]]);
+      updated++;
+    });
+
+    return JSON.stringify({
+      success: true,
+      created: created,
+      updated: updated,
+      message: 'Importação concluída: ' + created + ' criada(s), ' + updated + ' atualizada(s).'
+    });
+  } catch (e) {
+    Logger.log('[ControleReleases] confirm ' + e.toString());
+    return JSON.stringify({ success: false, message: e.message || e.toString() });
+  }
+}
