@@ -15,7 +15,7 @@ Janelas da release tribal ficam duplicadas em `Planejamento_Deploys`, sem tela d
 
 ## Objetivo
 
-Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual, import BM (dry-run → criar + atualizar janelas), calendário híbrido, Batman automático pela escala.
+Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual, import BM (dry-run com **seleção** → criar/atualizar só as escolhidas), calendário híbrido, Batman automático pela escala.
 
 ## Fora de escopo (fase 1)
 
@@ -32,8 +32,8 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 | Semana na grade | DOM → SÁB |
 | Contagem | Dias úteis (SEG–SEX sem feriado/ponte P1) |
 | Batman | Automático via `Escala_Sustentacao` (turno operacional = **2 semanas**; grade mostra o plantonista **do dia**; detalhes listam turnos que cruzam a janela) |
-| Import BM | Dry-run → criar + atualizar janelas |
-| Logo Batman | PNG original embutido (data URI) |
+| Import BM | Dry-run lista todas; usuário marca quais criar/atualizar; servidor revalida e aplica só as selecionadas |
+| Logo Batman | PNG original embutido (data URI); chip com fundo âmbar claro (não preto) |
 
 ## Regras de negócio
 
@@ -41,7 +41,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 2. Cancelar = `Status = Cancelado` (exclusão lógica); import não reativa.
 3. Manual: `Origem = Manual`.
 4. Import: board `879` / workflow `8641`; match `releaseMatchKey`; datas do título `(DD/MM a DD/MM)`.
-5. Dry-run obrigatório; confirmação revalida no servidor e aplica.
+5. Dry-run obrigatório; confirmação envia `createCardIds` + `updateIds` selecionados; servidor revalida e aplica **somente** esses itens ainda elegíveis.
 6. Atualização BM: datas + card id + origem; não altera `Observacao`.
 7. Dias úteis excluem Sáb/Dom e feriados/pontes com `bloqueiaDeploy`.
 8. Batman só na UI (cruzamento com escala). A escala atual é rodízio por **turno de 2 semanas**, não plantão diário. Visão futura (hub): **um Batman por release**, com duração alinhada à janela da release (~2 semanas).
@@ -63,7 +63,8 @@ Conforme spec de produto e implementação em `ReleasesControlModule.html` + `Co
 - [x] Aba `Controle_Releases` criada sob demanda com schema
 - [x] Aba na Web App com grade + detalhes
 - [x] Cadastro, edição e cancelamento com RBAC
-- [x] Import BM dry-run + confirmação (criar/atualizar)
+- [x] Import BM dry-run + confirmação seletiva (criar/atualizar só marcadas)
+- [x] Chip Batman legível (fundo claro)
 - [x] Batman automático pela escala
 - [x] Fins de semana e feriados P1 fora da contagem
 - [x] Logo Batman via asset (não emoji de bandeira nesta fase na grade)

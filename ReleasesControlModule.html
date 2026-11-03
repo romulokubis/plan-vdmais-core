@@ -88,15 +88,21 @@
 </div>
 
 <div id="rcImportBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
     <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center shrink-0">
       <h3 class="text-base font-bold text-slate-900 dark:text-white">Importar da Businessmap</h3>
       <button type="button" onclick="ReleasesControlModule.closeImport()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold">&times;</button>
     </div>
     <div id="rcImportBody" class="p-6 overflow-y-auto text-xs space-y-4"></div>
-    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2 shrink-0">
-      <button type="button" onclick="ReleasesControlModule.closeImport()" class="px-4 py-2 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-600">Fechar</button>
-      <button type="button" id="btnConfirmImport" onclick="ReleasesControlModule.confirmImport()" class="hidden px-4 py-2 rounded-lg text-xs font-bold bg-[#008775] text-white hover:bg-[#006e5f]">Confirmar importação</button>
+    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex flex-wrap justify-between gap-2 shrink-0">
+      <div id="rcImportSelectActions" class="hidden flex items-center gap-2">
+        <button type="button" onclick="ReleasesControlModule.setImportSelection(true)" class="px-3 py-2 rounded-lg text-[11px] font-bold border border-slate-300 dark:border-slate-600">Marcar todas</button>
+        <button type="button" onclick="ReleasesControlModule.setImportSelection(false)" class="px-3 py-2 rounded-lg text-[11px] font-bold border border-slate-300 dark:border-slate-600">Desmarcar</button>
+      </div>
+      <div class="flex gap-2 ml-auto">
+        <button type="button" onclick="ReleasesControlModule.closeImport()" class="px-4 py-2 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-600">Fechar</button>
+        <button type="button" id="btnConfirmImport" onclick="ReleasesControlModule.confirmImport()" class="hidden px-4 py-2 rounded-lg text-xs font-bold bg-[#008775] text-white hover:bg-[#006e5f]">Importar selecionadas</button>
+      </div>
     </div>
   </div>
 </div>
@@ -121,10 +127,20 @@
     border-radius: 9999px; font-size: 9px; font-weight: 700; line-height: 1;
     padding: 3px 6px 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .rc-chip-batman { background: #111; color: #facc15; border: 1px solid #facc15; }
-  .rc-chip-batman .rc-bat { width: 18px; height: 18px; border-radius: 9999px; object-fit: contain; flex-shrink: 0; }
+  .rc-chip-batman {
+    background: #fef9c3; color: #854d0e; border: 1px solid #fde68a;
+  }
+  .dark .rc-chip-batman {
+    background: rgba(250, 204, 21, 0.18); color: #fde68a; border-color: rgba(250, 204, 21, 0.45);
+  }
+  .rc-chip-batman .rc-bat { width: 18px; height: 18px; border-radius: 9999px; object-fit: contain; flex-shrink: 0; background: #fff; }
+  .dark .rc-chip-batman .rc-bat { background: rgba(15, 23, 42, 0.35); }
   .rc-chip-holiday { background: #ffe4e6; color: #9f1239; border: 1px solid #fecdd3; padding-left: 6px; max-width: 100%; }
   .dark .rc-chip-holiday { background: rgba(159, 18, 57, 0.35); color: #fecdd3; border-color: #9f1239; }
+  .rc-import-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 8px; }
+  .rc-import-row:hover { background: rgba(148, 163, 184, 0.12); }
+  .rc-import-row input { margin-top: 2px; flex-shrink: 0; }
+  .rc-import-row .rc-import-meta { color: #64748b; }
 </style>
 
 <script>
@@ -603,36 +619,105 @@ window.ReleasesControlModule = (function() {
       .previewImportReleasesFromBusinessmap();
   }
 
+  function collectImportSelection() {
+    var createCardIds = [];
+    var updateIds = [];
+    Array.prototype.forEach.call(document.querySelectorAll('input.rc-import-create:checked'), function(el) {
+      if (el.value) createCardIds.push(el.value);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('input.rc-import-update:checked'), function(el) {
+      if (el.value) updateIds.push(el.value);
+    });
+    return { createCardIds: createCardIds, updateIds: updateIds };
+  }
+
+  function refreshImportConfirmBtn() {
+    var sel = collectImportSelection();
+    var n = sel.createCardIds.length + sel.updateIds.length;
+    var btn = document.getElementById('btnConfirmImport');
+    var canConfirm = state.canEdit && n > 0;
+    btn.classList.toggle('hidden', !canConfirm);
+    btn.textContent = n ? ('Importar selecionadas (' + n + ')') : 'Importar selecionadas';
+  }
+
+  function setImportSelection(checked) {
+    Array.prototype.forEach.call(document.querySelectorAll('input.rc-import-create, input.rc-import-update'), function(el) {
+      el.checked = !!checked;
+    });
+    refreshImportConfirmBtn();
+  }
+
   function renderImportPreview(resp) {
-    var html = '<p class="text-slate-600 dark:text-slate-300">' + escapeHtml(resp.message || '') + '</p>';
-    function section(title, rows, formatter) {
-      if (!rows || !rows.length) return '';
-      return '<div><h4 class="font-bold text-slate-800 dark:text-slate-100 mb-2">' + title + ' (' + rows.length + ')</h4>' +
-        '<ul class="space-y-1 text-slate-600 dark:text-slate-300">' + rows.map(formatter).join('') + '</ul></div>';
+    var createRows = resp.toCreate || [];
+    var updateRows = resp.toUpdate || [];
+    var ignoredRows = resp.ignored || [];
+    var selectable = createRows.length + updateRows.length;
+    var html = '<p class="text-slate-600 dark:text-slate-300">' +
+      escapeHtml(resp.message || '') +
+      (selectable ? ' Marque as releases que deseja cadastrar ou atualizar.' : '') +
+      '</p>';
+
+    if (createRows.length) {
+      html += '<div><h4 class="font-bold text-slate-800 dark:text-slate-100 mb-2">Disponíveis para criar (' + createRows.length + ')</h4>' +
+        '<ul class="space-y-0.5 text-slate-700 dark:text-slate-300">';
+      createRows.forEach(function(r, idx) {
+        var id = 'rc-create-' + idx;
+        html += '<li class="rc-import-row">' +
+          '<input type="checkbox" class="rc-import-create" id="' + id + '" value="' + escapeHtml(r.businessmapCardId || '') + '" checked onchange="ReleasesControlModule.refreshImportConfirmBtn()">' +
+          '<label for="' + id + '" class="cursor-pointer">' +
+          '<span class="font-semibold">' + escapeHtml(r.releaseTribo) + '</span>' +
+          '<span class="rc-import-meta"> · ' + escapeHtml(r.dataInicio) + ' → ' + escapeHtml(r.dataFim) + '</span>' +
+          '</label></li>';
+      });
+      html += '</ul></div>';
     }
-    html += section('Criar', resp.toCreate, function(r) {
-      return '<li>· ' + escapeHtml(r.releaseTribo) + ' · ' + escapeHtml(r.dataInicio) + ' → ' + escapeHtml(r.dataFim) + '</li>';
-    });
-    html += section('Atualizar janelas', resp.toUpdate, function(r) {
-      return '<li>· ' + escapeHtml(r.id) + ' ' + escapeHtml(r.releaseTribo) + ': ' +
-        escapeHtml(r.dataInicioAnterior) + '→' + escapeHtml(r.dataFimAnterior) + ' ⇒ ' +
-        escapeHtml(r.dataInicio) + '→' + escapeHtml(r.dataFim) + '</li>';
-    });
-    html += section('Ignorar', resp.ignored, function(r) {
-      return '<li>· ' + escapeHtml(r.title || '') + ' — ' + escapeHtml(r.reason || '') + '</li>';
-    });
+
+    if (updateRows.length) {
+      html += '<div><h4 class="font-bold text-slate-800 dark:text-slate-100 mb-2">Atualizar janelas (' + updateRows.length + ')</h4>' +
+        '<ul class="space-y-0.5 text-slate-700 dark:text-slate-300">';
+      updateRows.forEach(function(r, idx) {
+        var id = 'rc-update-' + idx;
+        html += '<li class="rc-import-row">' +
+          '<input type="checkbox" class="rc-import-update" id="' + id + '" value="' + escapeHtml(r.id || '') + '" checked onchange="ReleasesControlModule.refreshImportConfirmBtn()">' +
+          '<label for="' + id + '" class="cursor-pointer">' +
+          '<span class="font-semibold">' + escapeHtml(r.id) + ' ' + escapeHtml(r.releaseTribo) + '</span>' +
+          '<span class="rc-import-meta">: ' + escapeHtml(r.dataInicioAnterior) + '→' + escapeHtml(r.dataFimAnterior) +
+          ' ⇒ ' + escapeHtml(r.dataInicio) + '→' + escapeHtml(r.dataFim) + '</span>' +
+          '</label></li>';
+      });
+      html += '</ul></div>';
+    }
+
+    if (ignoredRows.length) {
+      html += '<div><h4 class="font-bold text-slate-800 dark:text-slate-100 mb-2">Ignorar (' + ignoredRows.length + ')</h4>' +
+        '<ul class="space-y-1 text-slate-500 dark:text-slate-400">';
+      ignoredRows.forEach(function(r) {
+        html += '<li>· ' + escapeHtml(r.title || '') + ' — ' + escapeHtml(r.reason || '') + '</li>';
+      });
+      html += '</ul></div>';
+    }
+
     document.getElementById('rcImportBody').innerHTML = html;
-    var canConfirm = state.canEdit && ((resp.toCreate && resp.toCreate.length) || (resp.toUpdate && resp.toUpdate.length));
-    document.getElementById('btnConfirmImport').classList.toggle('hidden', !canConfirm);
+    document.getElementById('rcImportSelectActions').classList.toggle('hidden', !(state.canEdit && selectable));
+    refreshImportConfirmBtn();
   }
 
   function closeImport() {
     document.getElementById('rcImportBackdrop').classList.add('hidden');
+    document.getElementById('rcImportSelectActions').classList.add('hidden');
     state.importPreview = null;
   }
 
   function confirmImport() {
     if (!state.importPreview) return;
+    var selection = collectImportSelection();
+    if (!selection.createCardIds.length && !selection.updateIds.length) {
+      document.getElementById('rcImportBody').insertAdjacentHTML(
+        'afterbegin',
+        '<p class="text-rose-600 mb-2">Selecione ao menos uma release.</p>'
+      );
+      return;
+    }
     loading('Aplicando importação…');
     google.script.run
       .withSuccessHandler(function(raw) {
@@ -641,6 +726,7 @@ window.ReleasesControlModule = (function() {
           var resp = JSON.parse(raw);
           document.getElementById('rcImportBody').innerHTML = '<p class="' + (resp.success ? 'text-[#008775]' : 'text-rose-600') + '">' + escapeHtml(resp.message) + '</p>';
           document.getElementById('btnConfirmImport').classList.add('hidden');
+          document.getElementById('rcImportSelectActions').classList.add('hidden');
           if (resp.success) {
             notifyChanged();
             fetchData();
@@ -653,7 +739,7 @@ window.ReleasesControlModule = (function() {
         loadingDone();
         document.getElementById('rcImportBody').innerHTML = '<p class="text-rose-600">' + escapeHtml(e && e.message ? e.message : e) + '</p>';
       })
-      .confirmImportReleasesFromBusinessmap({});
+      .confirmImportReleasesFromBusinessmap(selection);
   }
 
   return {
@@ -692,7 +778,9 @@ window.ReleasesControlModule = (function() {
     cancel: cancel,
     openImportPreview: openImportPreview,
     closeImport: closeImport,
-    confirmImport: confirmImport
+    confirmImport: confirmImport,
+    setImportSelection: setImportSelection,
+    refreshImportConfirmBtn: refreshImportConfirmBtn
   };
 })();
 </script>

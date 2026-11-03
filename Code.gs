@@ -3373,7 +3373,24 @@ function confirmImportReleasesFromBusinessmap(payload) {
     var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
 
-    // Revalida no servidor (não confia só no client)
+    var createWanted = {};
+    var updateWanted = {};
+    var i;
+    var createList = payload && payload.createCardIds ? payload.createCardIds : [];
+    var updateList = payload && payload.updateIds ? payload.updateIds : [];
+    for (i = 0; i < createList.length; i++) {
+      var cId = String(createList[i] || '').trim();
+      if (cId) createWanted[cId] = true;
+    }
+    for (i = 0; i < updateList.length; i++) {
+      var uId = String(updateList[i] || '').trim();
+      if (uId) updateWanted[uId] = true;
+    }
+    if (!Object.keys(createWanted).length && !Object.keys(updateWanted).length) {
+      return JSON.stringify({ success: false, message: 'Nenhuma release selecionada.' });
+    }
+
+    // Revalida no servidor e aplica só o que o usuário marcou (e ainda é elegível).
     var plan = buildBusinessmapImportPlan(ss);
     var sheet = ensureControleReleasesSheet(ss);
     var stamp = nowSheetDateTime();
@@ -3381,6 +3398,7 @@ function confirmImportReleasesFromBusinessmap(payload) {
     var updated = 0;
 
     plan.toCreate.forEach(function(item) {
+      if (!createWanted[String(item.businessmapCardId || '')]) return;
       var id = nextControleReleaseId(sheet);
       sheet.appendRow([
         id,
@@ -3398,10 +3416,11 @@ function confirmImportReleasesFromBusinessmap(payload) {
 
     var loaded = loadControleReleaseRows(ss);
     plan.toUpdate.forEach(function(item) {
+      if (!updateWanted[String(item.id || '')]) return;
       var found = null;
-      for (var i = 0; i < loaded.rows.length; i++) {
-        if (loaded.rows[i].id === item.id) {
-          found = loaded.rows[i];
+      for (var j = 0; j < loaded.rows.length; j++) {
+        if (loaded.rows[j].id === item.id) {
+          found = loaded.rows[j];
           break;
         }
       }
@@ -3419,6 +3438,13 @@ function confirmImportReleasesFromBusinessmap(payload) {
       ]]);
       updated++;
     });
+
+    if (!created && !updated) {
+      return JSON.stringify({
+        success: false,
+        message: 'Nenhuma das selecionadas pôde ser aplicada (já sincronizada ou inválida). Atualize a prévia.'
+      });
+    }
 
     return JSON.stringify({
       success: true,
