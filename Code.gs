@@ -2972,7 +2972,7 @@ function loadPriority1HolidayMap(years) {
 function shortHolidayName(nome) {
   var n = String(nome || '').trim();
   if (n.length <= 22) return n;
-  return n.slice(0, 20) + '�';
+  return n.slice(0, 20) + '…';
 }
 
 function ymdKey(dateObj) {
@@ -3011,8 +3011,8 @@ function holidaysInWindow(start, end, holidayMap) {
 }
 
 /**
- * Lista releases ativas + overlays (Batman, feriados do m�s, dias �teis).
- * yearMonth opcional: "YYYY-MM" (filtra detalhes; grade ainda recebe feriados do m�s).
+ * Lista releases ativas + overlays (Batman, feriados do mês, dias úteis).
+ * yearMonth opcional: "YYYY-MM" (filtra detalhes; grade ainda recebe feriados do mês).
  */
 function getReleaseControls(yearMonth) {
   try {
@@ -3099,10 +3099,10 @@ function validateReleaseWindowPayload(payload) {
   if (!nome) return { ok: false, message: 'Informe o nome da release (Release_Tribo_VD).' };
   var start = parseSheetDate(payload.dataInicio);
   var end = parseSheetDate(payload.dataFim);
-  if (!start) return { ok: false, message: 'Data de in�cio inv�lida.' };
-  if (!end) return { ok: false, message: 'Data de fim inv�lida.' };
+  if (!start) return { ok: false, message: 'Data de início inválida.' };
+  if (!end) return { ok: false, message: 'Data de fim inválida.' };
   if (end.getTime() < start.getTime()) {
-    return { ok: false, message: 'Data de fim n�o pode ser anterior � de in�cio.' };
+    return { ok: false, message: 'Data de fim não pode ser anterior à de início.' };
   }
   return { ok: true, nome: nome, start: start, end: end };
 }
@@ -3143,7 +3143,7 @@ function updateReleaseControl(payload) {
       return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem editar releases.' });
     }
     if (!payload || !payload.id) {
-      return JSON.stringify({ success: false, message: 'ID da release n�o informado.' });
+      return JSON.stringify({ success: false, message: 'ID da release não informado.' });
     }
     var check = validateReleaseWindowPayload(payload);
     if (!check.ok) return JSON.stringify({ success: false, message: check.message });
@@ -3160,7 +3160,7 @@ function updateReleaseControl(payload) {
     }
     if (!found) return JSON.stringify({ success: false, message: 'Release ' + payload.id + ' não encontrada.' });
     if (String(found.status).toLowerCase() === 'cancelado') {
-      return JSON.stringify({ success: false, message: 'Release cancelada n�o pode ser editada.' });
+      return JSON.stringify({ success: false, message: 'Release cancelada não pode ser editada.' });
     }
 
     var stamp = nowSheetDateTime();
@@ -3186,7 +3186,7 @@ function cancelReleaseControl(id) {
     if (!isUserAuthorized()) {
       return JSON.stringify({ success: false, message: 'Acesso negado: apenas membros da squad podem cancelar releases.' });
     }
-    if (!id) return JSON.stringify({ success: false, message: 'ID da release n�o informado.' });
+    if (!id) return JSON.stringify({ success: false, message: 'ID da release não informado.' });
 
     var ss = getActiveDb();
     if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
@@ -3209,11 +3209,11 @@ function cancelReleaseControl(id) {
 }
 
 /**
- * Extrai intervalo DD/MM[/AAAA] a DD/MM[/AAAA] do t�tulo do card BM.
+ * Extrai intervalo DD/MM[/AAAA] a DD/MM[/AAAA] do título do card BM.
  */
 function parseReleaseWindowFromTitle(title, fallbackYear) {
   var text = String(title || '');
-  var match = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*(?:a|at�|-|�|�)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/i);
+  var match = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s*(?:a|até|-|–|—)\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/i);
   if (!match) return null;
   var y1 = match[3] ? parseInt(match[3], 10) : fallbackYear;
   var y2 = match[6] ? parseInt(match[6], 10) : y1;
@@ -3291,12 +3291,12 @@ function buildBusinessmapImportPlan(ss) {
     var title = String(card.title || '').trim();
     var key = releaseMatchKey(title);
     if (!key) {
-      ignored.push({ title: title, reason: 'T�tulo sem chave Release N.N' });
+      ignored.push({ title: title, reason: 'Título sem chave Release N.N' });
       return;
     }
     var windowDates = parseReleaseWindowFromTitle(title, fallbackYear);
     if (!windowDates) {
-      ignored.push({ title: title, reason: 'Sem intervalo de datas parse�vel no t�tulo' });
+      ignored.push({ title: title, reason: 'Sem intervalo de datas parseável no título' });
       return;
     }
     var displayName = normalizeReleaseDisplayTitle(title);
@@ -3328,7 +3328,7 @@ function buildBusinessmapImportPlan(ss) {
       curEnd.getTime() === windowDates.end.getTime() &&
       String(active.businessmapCardId || '') === cardId;
     if (same) {
-      ignored.push({ title: title, reason: 'J� sincronizada (' + active.id + ')' });
+      ignored.push({ title: title, reason: 'Já sincronizada (' + active.id + ')' });
       return;
     }
     toUpdate.push({

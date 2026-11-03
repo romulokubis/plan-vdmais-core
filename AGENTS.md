@@ -26,6 +26,7 @@ Responda em português do Brasil.
 - Não altere o `DEPLOYMENT_ID` do workflow de CI sem alinhamento explícito (URL produtiva).
 - Datas na planilha: ao ler abas, preferir `getDisplayValues()` (ou helper que normalize Date+texto para `DD/MM/AAAA`). `getValues()` sozinho em células data pode deslocar o dia por fuso; se criar helper (`cellToSheetDateString` etc.), **definir e chamar no mesmo commit**.
 - UI: se a API falhar, mostre a mensagem de erro. Não chame `render()` de estado vazio em seguida (isso apaga o erro e parece “lista sem dados”).
+- Encoding: arquivos `.gs` / `.html` em **UTF-8**. Strings PT-BR com acento quebrado (`�`, `Ã¡`, `Ã©`, `nÃ£o`) são corrupção de encoding — corrigir o texto na origem; não “escapar” no client.
 
 ## Documentação SDD
 
