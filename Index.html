@@ -53,6 +53,9 @@
       <button onclick="AppShell.switchTab('batman')" id="tab-batman" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
         🦇 Escala de sustentação / Batman
       </button>
+      <button onclick="AppShell.switchTab('releases')" id="tab-releases" class="py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer">
+        🚀 Controle de Releases
+      </button>
       <button onclick="AppShell.switchTab('calendar')" id="tab-calendar" class="py-3 text-xs font-bold border-b-2 border-[#008775] text-[#008775] dark:text-[#2dd4bf] flex items-center gap-2 shrink-0 transition-all cursor-pointer">
         📅 Calendário de Deploy
       </button>
@@ -77,6 +80,9 @@
       </div>
       <div id="view-batman" class="tab-view hidden">
         <?!= include('BatmanModule'); ?>
+      </div>
+      <div id="view-releases" class="tab-view hidden">
+        <?!= include('ReleasesControlModule'); ?>
       </div>
       <div id="view-calendar" class="tab-view">
         <?!= include('CalendarModule'); ?>
@@ -155,7 +161,7 @@
           el.classList.add('hidden');
         });
 
-        ['capacity', 'batman', 'calendar', 'holidays', 'releasenotes', 'absences', 'rituals'].forEach(function(t) {
+        ['capacity', 'batman', 'releases', 'calendar', 'holidays', 'releasenotes', 'absences', 'rituals'].forEach(function(t) {
           var btn = document.getElementById('tab-' + t);
           if (btn) {
             btn.className = "py-3 text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-2 shrink-0 transition-all cursor-pointer";
@@ -176,6 +182,8 @@
           window.HolidaysModule.show();
         } else if (tabId === 'batman' && window.BatmanModule && window.BatmanModule.show) {
           window.BatmanModule.show();
+        } else if (tabId === 'releases' && window.ReleasesControlModule && window.ReleasesControlModule.show) {
+          window.ReleasesControlModule.show();
         } else if (tabId === 'capacity' && window.CapacityModule && window.CapacityModule.show) {
           window.CapacityModule.show();
         } else if (tabId === 'releasenotes' && window.ReleaseNotesModule && window.ReleaseNotesModule.show) {
@@ -192,6 +200,7 @@
         if (window.HeaderModule && window.HeaderModule.init) window.HeaderModule.init();
         if (window.CapacityModule && window.CapacityModule.init) window.CapacityModule.init();
         if (window.BatmanModule && window.BatmanModule.init) window.BatmanModule.init();
+        if (window.ReleasesControlModule && window.ReleasesControlModule.init) window.ReleasesControlModule.init();
         if (window.CalendarModule && window.CalendarModule.init) window.CalendarModule.init();
         if (window.HolidaysModule && window.HolidaysModule.init) window.HolidaysModule.init();
         if (window.ReleaseNotesModule && window.ReleaseNotesModule.init) window.ReleaseNotesModule.init();
