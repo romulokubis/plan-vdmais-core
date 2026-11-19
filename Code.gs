@@ -246,6 +246,142 @@ function syncEscalaStatus(sheet, schedules) {
   });
 }
 
+var ESCALA_CORE_HEADERS = [
+  'ID',
+  'Desenvolvedor_Email',
+  'Desenvolvedor_Nome',
+  'Data_Inicio',
+  'Data_Fim',
+  'Duracao_Semanas',
+  'Status',
+  'Observacao'
+];
+
+var ESCALA_RELEASE_HEADERS = [
+  'Release_Tribo_VD',
+  'Controle_Release_ID'
+];
+
+/**
+ * Garante Escala_Sustentacao com colunas de release no fim (não altera índices 1–8).
+ */
+function ensureEscalaSheet(ss) {
+  var sheet = ss.getSheetByName('Escala_Sustentacao');
+  if (!sheet) {
+    sheet = ss.insertSheet('Escala_Sustentacao');
+    sheet.appendRow(ESCALA_CORE_HEADERS.concat(ESCALA_RELEASE_HEADERS));
+    return {
+      sheet: sheet,
+      releaseTriboCol: 9,
+      controleReleaseIdCol: 10
+    };
+  }
+
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0] || [];
+  var map = {};
+  headers.forEach(function(h, idx) {
+    var key = normalizeHeaderKey(h);
+    if (key) map[key] = idx + 1;
+  });
+
+  var nextCol = lastCol + 1;
+  ESCALA_RELEASE_HEADERS.forEach(function(name) {
+    var key = normalizeHeaderKey(name);
+    if (map[key]) return;
+    sheet.getRange(1, nextCol).setValue(name);
+    map[key] = nextCol;
+    nextCol += 1;
+  });
+
+  return {
+    sheet: sheet,
+    releaseTriboCol: map[normalizeHeaderKey('Release_Tribo_VD')] || 9,
+    controleReleaseIdCol: map[normalizeHeaderKey('Controle_Release_ID')] || 10
+  };
+}
+
+/**
+ * Releases ativas para backfill / enrich da escala.
+ */
+function loadActiveReleaseWindows(ss) {
+  var releases = [];
+  var loaded = null;
+  try {
+    loaded = loadControleReleaseRows(ss);
+  } catch (e) {
+    Logger.log('[Escala] Controle_Releases indisponível para backfill: ' + e.toString());
+    return releases;
+  }
+  if (!loaded || !loaded.rows) return releases;
+
+  loaded.rows.forEach(function(row) {
+    if (String(row.status || '').trim().toLowerCase() === 'cancelado') return;
+    var start = parseSheetDate(row.dataInicio);
+    var end = parseSheetDate(row.dataFim);
+    if (!start || !end) return;
+    releases.push({
+      id: row.id,
+      releaseTribo: row.releaseTribo,
+      dataInicio: start,
+      dataFim: end
+    });
+  });
+  return releases;
+}
+
+/**
+ * Maior overlap com release ativa; empate favorece quem cobre o início do turno.
+ */
+function bestReleaseForTurn(releases, turnStart, turnEnd) {
+  var best = null;
+  var bestDays = -1;
+  releases.forEach(function(rel) {
+    if (!rangesIntersect(turnStart, turnEnd, rel.dataInicio, rel.dataFim)) return;
+    var days = overlapInclusiveDays(turnStart, turnEnd, rel.dataInicio, rel.dataFim);
+    if (days <= 0) return;
+    var coversStart = rel.dataInicio.getTime() <= turnStart.getTime() && turnStart.getTime() <= rel.dataFim.getTime();
+    var better = false;
+    if (!best || days > bestDays) {
+      better = true;
+    } else if (days === bestDays) {
+      var bestCoversStart =
+        best.dataInicio.getTime() <= turnStart.getTime() && turnStart.getTime() <= best.dataFim.getTime();
+      if (coversStart && !bestCoversStart) better = true;
+      else if (coversStart === bestCoversStart && rel.dataInicio.getTime() < best.dataInicio.getTime()) better = true;
+    }
+    if (better) {
+      best = rel;
+      bestDays = days;
+    }
+  });
+  return best;
+}
+
+/**
+ * Preenche Release_Tribo_VD / Controle_Release_ID só quando vazios.
+ */
+function backfillEscalaReleaseLinks(sheet, schedules, colMap, releases) {
+  if (!releases || !releases.length) return;
+  schedules.forEach(function(item) {
+    if (!item.sheetRow) return;
+    if (item.releaseTribo && item.controleReleaseId) return;
+    var start = parseSheetDate(item.dataInicio);
+    var end = parseSheetDate(item.dataFim);
+    if (!start || !end) return;
+    var best = bestReleaseForTurn(releases, start, end);
+    if (!best) return;
+    if (!item.releaseTribo) {
+      item.releaseTribo = best.releaseTribo;
+      sheet.getRange(item.sheetRow, colMap.releaseTriboCol).setValue(best.releaseTribo);
+    }
+    if (!item.controleReleaseId) {
+      item.controleReleaseId = best.id;
+      sheet.getRange(item.sheetRow, colMap.controleReleaseIdCol).setValue(best.id);
+    }
+  });
+}
+
 function nextReleaseId(sheet) {
   var data = sheet.getDataRange().getDisplayValues();
   var max = 0;
@@ -1220,6 +1356,7 @@ function loadFeriadosForValidation(dateObj) {
 /**
  * Módulo Batman: Busca a escala de sustentação da aba 'Escala_Sustentacao'.
  * O plantonista vigente é o turno cujo intervalo contém a data de hoje.
+ * Enriquece / backfill Release_Tribo_VD e Controle_Release_ID (colunas no fim).
  */
 function getEscalaBatman() {
   try {
@@ -1227,24 +1364,23 @@ function getEscalaBatman() {
     if (!ss) {
       return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
     }
-    
-    var sheet = ss.getSheetByName('Escala_Sustentacao');
-    if (!sheet) {
-      return JSON.stringify({ success: false, message: 'Aba "Escala_Sustentacao" não encontrada.' });
-    }
-    
+
+    var colMap = ensureEscalaSheet(ss);
+    var sheet = colMap.sheet;
     var data = sheet.getDataRange().getDisplayValues();
     if (!data || data.length <= 1) {
       return JSON.stringify({ success: true, activeDev: null, schedules: [] });
     }
-    
+
     var rows = data.slice(1);
     var activeDev = null;
     var schedules = [];
+    var releaseTriboIdx = colMap.releaseTriboCol - 1;
+    var controleReleaseIdx = colMap.controleReleaseIdCol - 1;
 
     rows.forEach(function(row, index) {
       if (!row || (!row[0] && !row[2])) return;
-      
+
       var item = {
         sheetRow: index + 2,
         id: String(row[0] || '').trim(),
@@ -1254,7 +1390,9 @@ function getEscalaBatman() {
         dataFim: String(row[4] || '').trim(),
         duracaoSemanas: String(row[5] || '').trim(),
         status: String(row[6] || '').trim(),
-        observacao: String(row[7] || '').trim()
+        observacao: String(row[7] || '').trim(),
+        releaseTribo: String(row[releaseTriboIdx] || '').trim(),
+        controleReleaseId: String(row[controleReleaseIdx] || '').trim()
       };
 
       schedules.push(item);
@@ -1264,6 +1402,13 @@ function getEscalaBatman() {
       syncEscalaStatus(sheet, schedules);
     } catch (writeError) {
       Logger.log('[Escala] Não foi possível atualizar a coluna Status: ' + writeError.toString());
+    }
+
+    try {
+      var releases = loadActiveReleaseWindows(ss);
+      backfillEscalaReleaseLinks(sheet, schedules, colMap, releases);
+    } catch (backfillError) {
+      Logger.log('[Escala] Backfill de release não aplicado: ' + backfillError.toString());
     }
 
     schedules.sort(function(a, b) {
@@ -1351,58 +1496,64 @@ function regenerateBatmanSchedule(payload) {
     if (quantity > 52) {
       return JSON.stringify({ success: false, message: 'No máximo 52 turnos por geração.' });
     }
-    var weeks = parseInt(payload && payload.duracaoSemanas, 10);
-    if (isNaN(weeks) || weeks < 1) weeks = 2;
-
-    var ss = getActiveDb();
-    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
-    var sheet = ss.getSheetByName('Escala_Sustentacao');
-    if (!sheet) {
-      return JSON.stringify({ success: false, message: 'Aba "Escala_Sustentacao" não encontrada.' });
-    }
-
-    var roster = loadEscalaRoster(ss);
-    if (!roster.length) {
-      return JSON.stringify({
-        success: false,
-        message: 'Nenhum integrante com Ativo_Escala = Sim.'
-      });
-    }
-
-    var latestEnd = null;
-    sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
-      var end = parseSheetDate(row[4]);
-      if (!end) return;
-      if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
+  var weeks = parseInt(payload && payload.duracaoSemanas, 10);
+  if (isNaN(weeks) || weeks < 1) {
+    return JSON.stringify({
+      success: false,
+      message: 'Informe a duração em semanas (mínimo 1), alinhada à janela da release.'
     });
+  }
 
-    var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    if (latestEnd) {
-      var nextDay = addDays(latestEnd, 1);
-      if (nextDay.getTime() > cursor.getTime()) cursor = nextDay;
-    }
+  var ss = getActiveDb();
+  if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+  var colMap = ensureEscalaSheet(ss);
+  var sheet = colMap.sheet;
 
-    var nextId = nextEscalaId(sheet);
-    var created = [];
-    for (var t = 0; t < quantity; t++) {
-      var person = roster[t % roster.length];
-      var turnStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
-      var turnEnd = addDays(turnStart, weeks * 7 - 1);
-      nextId += 1;
-      var id = 'ESC-' + padIdNumber(nextId);
-      sheet.appendRow([
-        id,
-        person.email,
-        person.nome,
-        formatSheetDate(turnStart),
-        formatSheetDate(turnEnd),
-        String(weeks),
-        '',
-        ''
-      ]);
-      created.push(id);
-      cursor = addDays(turnEnd, 1);
-    }
+  var roster = loadEscalaRoster(ss);
+  if (!roster.length) {
+    return JSON.stringify({
+      success: false,
+      message: 'Nenhum integrante com Ativo_Escala = Sim.'
+    });
+  }
+
+  var latestEnd = null;
+  sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
+    var end = parseSheetDate(row[4]);
+    if (!end) return;
+    if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
+  });
+
+  var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  if (latestEnd) {
+    var nextDay = addDays(latestEnd, 1);
+    if (nextDay.getTime() > cursor.getTime()) cursor = nextDay;
+  }
+
+  var nextId = nextEscalaId(sheet);
+  var created = [];
+  for (var t = 0; t < quantity; t++) {
+    var person = roster[t % roster.length];
+    var turnStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+    var turnEnd = addDays(turnStart, weeks * 7 - 1);
+    nextId += 1;
+    var id = 'ESC-' + padIdNumber(nextId);
+    var rowValues = [
+      id,
+      person.email,
+      person.nome,
+      formatSheetDate(turnStart),
+      formatSheetDate(turnEnd),
+      String(weeks),
+      '',
+      ''
+    ];
+    var maxCol = Math.max(colMap.releaseTriboCol, colMap.controleReleaseIdCol, 8);
+    while (rowValues.length < maxCol) rowValues.push('');
+    sheet.appendRow(rowValues);
+    created.push(id);
+    cursor = addDays(turnEnd, 1);
+  }
 
     return JSON.stringify({
       success: true,

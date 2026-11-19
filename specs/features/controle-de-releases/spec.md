@@ -31,7 +31,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 | UI | Grade mensal + Detalhes das releases do período |
 | Semana na grade | DOM → SÁB |
 | Contagem | Dias úteis (SEG–SEX sem feriado/ponte P1) |
-| Batman | Automático via `Escala_Sustentacao` (turno = **2 semanas**; grade = plantonista só em **dia útil** com release — sem Sáb/Dom, feriado/ponte P1 ou recesso; detalhes = **um** Batman por release, maior cobertura na janela) |
+| Batman | Automático via `Escala_Sustentacao` (turno = **vigência da release**; grade = plantonista só em **dia útil** com release — sem Sáb/Dom, feriado/ponte P1 ou recesso; detalhes = **um** Batman por release, maior cobertura na janela) |
 | Import BM | Dry-run lista todas; usuário marca quais criar/atualizar; servidor revalida e aplica só as selecionadas |
 | Logo Batman | PNG original embutido (data URI); chip com fundo âmbar claro (não preto) |
 
@@ -45,7 +45,7 @@ Módulo **Controle de Releases**, paralelo ao fluxo de deploys: cadastro manual,
 6. Atualização BM: datas + card id + origem; não altera `Observacao`.
 7. Dias úteis excluem Sáb/Dom e feriados/pontes com `bloqueiaDeploy`.
 8. Feriado/ponte/recesso P1 que cai em **Sáb/Dom** não aparece na grade nem em `feriadosNaJanela` (sem atuação no fim de semana).
-9. Batman só na UI (cruzamento com escala). A escala atual é rodízio por **turno de 2 semanas**, não plantão diário. Visão futura (hub): **um Batman por release**, com duração alinhada à janela da release (~2 semanas).
+9. Batman só na UI (cruzamento com escala). A escala atual usa turnos com duração = vigência da release (`Release_Tribo_VD` / `Controle_Release_ID` na escala). Hub futuro: Batman gravado na entidade release e geração da escala a partir das releases.
 
 ## Dados
 

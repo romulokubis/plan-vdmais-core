@@ -1,6 +1,6 @@
 <div id="BatmanModuleContainer" class="flex flex-col gap-6 w-full">
-  
-  <!-- Card de Destaque: Dev Ativo / Batman da Vez -->
+
+  <!-- Hero: Batman da Vez -->
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-700/60">
       <div class="flex items-center gap-2">
@@ -21,28 +21,26 @@
     </div>
   </div>
 
-  <!-- Tabela de Próximas Escalas e Histórico -->
+  <!-- Cronograma por release -->
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
-    <h3 class="text-sm font-bold text-slate-900 dark:text-white mb-4">Cronograma de Rodízio da Squad</h3>
-    
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse text-sm">
-        <thead>
-          <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            <th class="py-3 px-3">ID</th>
-            <th class="py-3 px-3">Desenvolvedor</th>
-            <th class="py-3 px-3">Período</th>
-            <th class="py-3 px-3 text-center">Duração</th>
-            <th class="py-3 px-3 text-center">Status</th>
-            <th class="py-3 px-3">Observação</th>
-          </tr>
-        </thead>
-        <tbody id="batmanTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/60">
-          <tr>
-            <td colspan="6" class="py-6 text-center text-xs text-slate-400">Carregando histórico de escalas...</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-5">
+      <div>
+        <h3 class="text-sm font-bold text-slate-900 dark:text-white">Cronograma por release</h3>
+        <p class="text-xs text-slate-500 mt-1">Turnos alinhados à vigência da release de negócio — sem lista infinita.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <div class="inline-flex rounded-full border border-slate-200 dark:border-slate-600 p-0.5 bg-slate-50 dark:bg-slate-900/40">
+          <button type="button" data-batman-filter="ativos" onclick="BatmanModule.setFilter('ativos')" class="batman-filter-btn px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors cursor-pointer">Ativos e próximos</button>
+          <button type="button" data-batman-filter="programado" onclick="BatmanModule.setFilter('programado')" class="batman-filter-btn px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors cursor-pointer">Programado</button>
+          <button type="button" data-batman-filter="concluido" onclick="BatmanModule.setFilter('concluido')" class="batman-filter-btn px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors cursor-pointer">Histórico</button>
+          <button type="button" data-batman-filter="todos" onclick="BatmanModule.setFilter('todos')" class="batman-filter-btn px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors cursor-pointer">Todos</button>
+        </div>
+        <input id="batmanSearch" type="search" placeholder="Buscar dev ou release" oninput="BatmanModule.setSearch(this.value)" class="w-full sm:w-52 px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+      </div>
+    </div>
+
+    <div id="batmanScheduleRoot" class="space-y-6">
+      <p class="text-xs text-slate-400 py-4">Carregando cronograma...</p>
     </div>
   </div>
 
@@ -55,7 +53,7 @@
       <button type="button" onclick="BatmanModule.closeGenerate()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
     </div>
     <form id="batmanGenerateForm" onsubmit="BatmanModule.handleGenerate(event)" class="p-6 space-y-4">
-      <p class="text-xs text-slate-500">Só acrescenta turnos. O início efetivo é o maior entre a data pedida e o dia seguinte ao último turno existente.</p>
+      <p class="text-xs text-slate-500">Só acrescenta turnos. O início efetivo é o maior entre a data pedida e o dia seguinte ao último turno existente. Use a duração da <strong>janela da release</strong> (não um padrão fixo de 2 semanas).</p>
       <div>
         <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Data início *</label>
         <input type="date" id="batmanGenInicio" required class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
@@ -66,8 +64,8 @@
           <input type="number" id="batmanGenQtd" required min="1" max="52" value="4" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Semanas / turno</label>
-          <input type="number" id="batmanGenSemanas" min="1" value="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
+          <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Semanas / turno *</label>
+          <input type="number" id="batmanGenSemanas" required min="1" value="2" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-white" />
         </div>
       </div>
       <div id="batmanGenFeedback" class="hidden text-xs py-2 px-3 rounded-lg"></div>
@@ -81,10 +79,15 @@
 
 <script>
 window.BatmanModule = (function() {
+  var UPCOMING_LIMIT = 6;
+
   var state = {
     activeDev: null,
     schedules: [],
-    isManager: false
+    isManager: false,
+    filter: 'ativos',
+    search: '',
+    historyOpen: {}
   };
 
   function parseDate(str) {
@@ -111,19 +114,49 @@ window.BatmanModule = (function() {
     return new Date(year, month, day);
   }
 
-  function pickActiveDev(schedules) {
+  function startOfToday() {
     var now = new Date();
-    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    var found = null;
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function statusKey(status) {
+    return String(status || '').trim().toLowerCase();
+  }
+
+  function pickActiveDev(schedules) {
+    var today = startOfToday().getTime();
+    var found = null;
     schedules.forEach(function(item) {
       var start = parseDate(item.dataInicio);
       var end = parseDate(item.dataFim);
       if (!start || !end) return;
       if (start.getTime() <= today && today <= end.getTime()) found = item;
     });
-
     return found;
+  }
+
+  function daysRemaining(item) {
+    var end = parseDate(item && item.dataFim);
+    if (!end) return null;
+    var today = startOfToday().getTime();
+    var diff = Math.floor((end.getTime() - today) / 86400000);
+    return diff;
+  }
+
+  function quarterKey(item) {
+    var start = parseDate(item.dataInicio) || parseDate(item.dataFim);
+    if (!start) return 'Sem data';
+    var q = Math.floor(start.getMonth() / 3) + 1;
+    return start.getFullYear() + '-Q' + q;
   }
 
   function syncActiveBadge() {
@@ -134,13 +167,13 @@ window.BatmanModule = (function() {
 
   function getInitials(name) {
     if (!name) return '??';
-    var parts = name.trim().split(' ');
+    var parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
   function getStatusBadge(status) {
-    var s = String(status).toLowerCase();
+    var s = statusKey(status);
     if (s === 'ativo') {
       return '<span class="px-2.5 py-1 rounded-full text-xs font-bold bg-[#008775]/10 text-[#008775] dark:bg-[#2dd4bf]/20 dark:text-[#2dd4bf]">Ativo</span>';
     }
@@ -148,6 +181,45 @@ window.BatmanModule = (function() {
       return '<span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">Programado</span>';
     }
     return '<span class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">Concluído</span>';
+  }
+
+  function releaseChip(item) {
+    var label = item.releaseTribo || '';
+    if (!label) {
+      return '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">Sem release vinculada</span>';
+    }
+    var title = item.controleReleaseId ? (' title="' + escapeHtml(item.controleReleaseId) + '"') : '';
+    return '<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800"' + title + '>' +
+      escapeHtml(label) +
+      '</span>';
+  }
+
+  function matchesSearch(item) {
+    var q = String(state.search || '').trim().toLowerCase();
+    if (!q) return true;
+    var hay = [item.nome, item.email, item.releaseTribo, item.controleReleaseId, item.id, item.observacao]
+      .join(' ')
+      .toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function matchesFilter(item) {
+    var s = statusKey(item.status);
+    if (state.filter === 'todos') return true;
+    if (state.filter === 'programado') return s === 'programado';
+    if (state.filter === 'concluido') return s === 'concluído' || s === 'concluido';
+    return s === 'ativo' || s === 'programado';
+  }
+
+  function syncFilterButtons() {
+    var buttons = document.querySelectorAll('.batman-filter-btn');
+    buttons.forEach(function(btn) {
+      var active = btn.getAttribute('data-batman-filter') === state.filter;
+      btn.className = 'batman-filter-btn px-3 py-1.5 rounded-full text-[11px] font-semibold transition-colors cursor-pointer ' +
+        (active
+          ? 'bg-[#008775] text-white shadow-sm'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800');
+    });
   }
 
   function renderActiveDev() {
@@ -163,57 +235,176 @@ window.BatmanModule = (function() {
 
     var dev = state.activeDev;
     var initials = getInitials(dev.nome);
-    var obsHtml = dev.observacao ? '<span class="inline-block mt-1 text-[11px] text-slate-400">📌 ' + dev.observacao + '</span>' : '';
+    var remaining = daysRemaining(dev);
+    var remainingLabel = remaining == null
+      ? ''
+      : (remaining < 0
+        ? 'Encerrado'
+        : (remaining === 0 ? 'Último dia' : remaining + ' dia(s) restantes'));
+    var obsHtml = dev.observacao
+      ? '<span class="inline-block mt-1 text-[11px] text-slate-400">' + escapeHtml(dev.observacao) + '</span>'
+      : '';
 
-    container.innerHTML = 
+    container.innerHTML =
       '<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-700/60">' +
         '<div class="flex items-center gap-4">' +
-          '<div class="w-14 h-14 rounded-2xl bg-[#008775] text-white font-bold text-lg flex items-center justify-center shadow-md select-none shrink-0">' + initials + '</div>' +
+          '<div class="w-14 h-14 rounded-2xl bg-[#008775] text-white font-bold text-lg flex items-center justify-center shadow-md select-none shrink-0">' + escapeHtml(initials) + '</div>' +
           '<div>' +
-            '<h3 class="text-base font-bold text-slate-900 dark:text-white">' + dev.nome + '</h3>' +
-            '<p class="text-xs text-slate-500 dark:text-slate-400 font-mono">' + dev.email + '</p>' +
+            '<div class="flex flex-wrap items-center gap-2 mb-1">' +
+              '<h3 class="text-base font-bold text-slate-900 dark:text-white">' + escapeHtml(dev.nome) + '</h3>' +
+              releaseChip(dev) +
+            '</div>' +
+            '<p class="text-xs text-slate-500 dark:text-slate-400 font-mono">' + escapeHtml(dev.email) + '</p>' +
             obsHtml +
           '</div>' +
         '</div>' +
         '<div class="flex flex-col sm:items-end gap-1 border-t sm:border-t-0 pt-3 sm:pt-0 w-full sm:w-auto border-slate-200 dark:border-slate-700">' +
           '<span class="text-xs text-slate-400 font-medium">Período da Escala</span>' +
           '<span class="text-sm font-bold text-slate-800 dark:text-slate-200 font-mono bg-white dark:bg-slate-800 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700">' +
-            dev.dataInicio + ' → ' + dev.dataFim +
+            escapeHtml(dev.dataInicio) + ' → ' + escapeHtml(dev.dataFim) +
           '</span>' +
-          '<span class="text-[11px] text-slate-400">Duração: ' + dev.duracaoSemanas + ' semana(s)</span>' +
+          '<span class="text-[11px] text-slate-400">Duração: ' + escapeHtml(dev.duracaoSemanas || '—') + ' semana(s)' +
+            (remainingLabel ? ' · ' + remainingLabel : '') +
+          '</span>' +
         '</div>' +
       '</div>';
   }
 
-  function renderTable() {
-    var container = document.getElementById('batmanTableBody');
-    if (!container) return;
+  function renderTurnCard(item, opts) {
+    opts = opts || {};
+    var isCurrent = state.activeDev && item.id === state.activeDev.id;
+    var ring = isCurrent ? 'ring-1 ring-[#008775]/40 border-[#008775]/30' : 'border-slate-200/70 dark:border-slate-700';
+    var muted = opts.muted ? 'opacity-90' : '';
+    return (
+      '<article class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border bg-white/70 dark:bg-slate-900/40 ' + ring + ' ' + muted + '" title="' + escapeHtml(item.id) + '">' +
+        '<div class="flex items-center gap-3 min-w-0">' +
+          '<div class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center shrink-0">' +
+            escapeHtml(getInitials(item.nome)) +
+          '</div>' +
+          '<div class="min-w-0">' +
+            '<div class="flex flex-wrap items-center gap-2">' +
+              '<p class="text-sm font-semibold text-slate-900 dark:text-white truncate">' + escapeHtml(item.nome) + '</p>' +
+              releaseChip(item) +
+            '</div>' +
+            '<p class="text-[11px] text-slate-500 font-mono truncate">' + escapeHtml(item.dataInicio) + ' → ' + escapeHtml(item.dataFim) +
+              ' · ' + escapeHtml(item.duracaoSemanas || '—') + ' sem</p>' +
+          '</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-2 shrink-0">' +
+          getStatusBadge(item.status) +
+        '</div>' +
+      '</article>'
+    );
+  }
 
-    if (state.schedules.length === 0) {
-      container.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-xs text-slate-400">Nenhum registro encontrado na planilha.</td></tr>';
+  function renderSchedule() {
+    var root = document.getElementById('batmanScheduleRoot');
+    if (!root) return;
+    syncFilterButtons();
+
+    if (!state.schedules.length) {
+      root.innerHTML = '<p class="text-xs text-slate-400 py-4">Nenhum registro encontrado na planilha.</p>';
       return;
     }
 
-    var html = '';
-    state.schedules.forEach(function(item) {
-      var isCurrent = state.activeDev && item.id === state.activeDev.id;
-      var rowBg = isCurrent ? 'bg-[#008775]/5 dark:bg-[#2dd4bf]/5 font-semibold' : 'hover:bg-slate-50/80 dark:hover:bg-slate-700/30';
-
-      html += 
-        '<tr class="' + rowBg + ' transition-colors">' +
-          '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + item.id + '</td>' +
-          '<td class="py-3 px-3 text-slate-900 dark:text-slate-100">' +
-            '<div class="font-medium">' + item.nome + '</div>' +
-            '<div class="text-[11px] text-slate-400 font-mono">' + item.email + '</div>' +
-          '</td>' +
-          '<td class="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-300">' + item.dataInicio + ' à ' + item.dataFim + '</td>' +
-          '<td class="py-3 px-3 text-center text-xs text-slate-500">' + item.duracaoSemanas + ' sem</td>' +
-          '<td class="py-3 px-3 text-center">' + getStatusBadge(item.status) + '</td>' +
-          '<td class="py-3 px-3 text-xs text-slate-400 truncate max-w-[200px]" title="' + item.observacao + '">' + (item.observacao || '-') + '</td>' +
-        '</tr>';
+    var filtered = state.schedules.filter(function(item) {
+      return matchesFilter(item) && matchesSearch(item);
     });
 
-    container.innerHTML = html;
+    if (!filtered.length) {
+      root.innerHTML = '<p class="text-xs text-slate-400 py-4">Nenhum turno corresponde ao filtro ou à busca.</p>';
+      return;
+    }
+
+    var upcoming = [];
+    var history = [];
+    filtered.forEach(function(item) {
+      var s = statusKey(item.status);
+      if (s === 'concluído' || s === 'concluido') history.push(item);
+      else if (s === 'programado') upcoming.push(item);
+      else if (state.filter === 'todos' || state.filter === 'ativos') {
+        /* ativo já está no hero; em "todos" / "ativos" não duplicar card do vigente em próximos */
+        if (!(state.activeDev && item.id === state.activeDev.id)) upcoming.push(item);
+      }
+    });
+
+    upcoming.sort(function(a, b) {
+      var sa = parseDate(a.dataInicio);
+      var sb = parseDate(b.dataInicio);
+      return (sa ? sa.getTime() : 0) - (sb ? sb.getTime() : 0);
+    });
+    history.sort(function(a, b) {
+      var sa = parseDate(a.dataInicio);
+      var sb = parseDate(b.dataInicio);
+      return (sb ? sb.getTime() : 0) - (sa ? sa.getTime() : 0);
+    });
+
+    var html = '';
+    var showUpcoming = state.filter !== 'concluido';
+    var showHistory = state.filter === 'concluido' || state.filter === 'todos';
+
+    if (showUpcoming) {
+      var limited = upcoming.slice(0, UPCOMING_LIMIT);
+      html += '<section>';
+      html += '<div class="flex items-center justify-between mb-3">';
+      html += '<h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Próximos turnos</h4>';
+      if (upcoming.length > UPCOMING_LIMIT) {
+        html += '<span class="text-[11px] text-slate-400">Exibindo ' + UPCOMING_LIMIT + ' de ' + upcoming.length + '</span>';
+      }
+      html += '</div>';
+      if (!limited.length) {
+        html += '<p class="text-xs text-slate-400 py-2">Nenhum turno programado à frente.</p>';
+      } else {
+        html += '<div class="space-y-2">';
+        limited.forEach(function(item) { html += renderTurnCard(item); });
+        html += '</div>';
+      }
+      html += '</section>';
+    }
+
+    if (showHistory && (history.length || state.filter === 'concluido' || state.filter === 'todos')) {
+      var groups = {};
+      var groupOrder = [];
+      history.forEach(function(item) {
+        var key = quarterKey(item);
+        if (!groups[key]) {
+          groups[key] = [];
+          groupOrder.push(key);
+        }
+        groups[key].push(item);
+      });
+
+      html += '<section>';
+      html += '<div class="flex items-center justify-between mb-3">';
+      html += '<h4 class="text-xs font-bold uppercase tracking-wider text-slate-400">Histórico</h4>';
+      html += '<span class="text-[11px] text-slate-400">' + history.length + ' turno(s)</span>';
+      html += '</div>';
+
+      if (!history.length) {
+        html += '<p class="text-xs text-slate-400 py-2">Nenhum turno concluído no filtro atual.</p>';
+      } else {
+        html += '<div class="space-y-2">';
+        var forceOpen = state.filter === 'concluido';
+        groupOrder.forEach(function(key, idx) {
+          var open = forceOpen ? (state.historyOpen[key] !== false) : !!state.historyOpen[key];
+          if (forceOpen && state.historyOpen[key] === undefined && idx === 0) open = true;
+          var items = groups[key];
+          html += '<details class="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden"' + (open ? ' open' : '') +
+            ' ontoggle="BatmanModule.onHistoryToggle(\'' + escapeHtml(key) + '\', this.open)">';
+          html += '<summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 bg-slate-50/80 dark:bg-slate-900/50 flex items-center justify-between gap-2">';
+          html += '<span>' + escapeHtml(key) + '</span>';
+          html += '<span class="text-[11px] font-medium text-slate-400">' + items.length + '</span>';
+          html += '</summary>';
+          html += '<div class="p-3 space-y-2 border-t border-slate-100 dark:border-slate-700">';
+          items.forEach(function(item) { html += renderTurnCard(item, { muted: true }); });
+          html += '</div></details>';
+        });
+        html += '</div>';
+      }
+      html += '</section>';
+    }
+
+    root.innerHTML = html;
   }
 
   function loadingStart(message) {
@@ -229,12 +420,15 @@ window.BatmanModule = (function() {
   function fetchData() {
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
       state.schedules = [
-        { id: 'ESC-119', email: 'rodrigo.mazuco@grupoboticario.com.br', nome: 'Rodrigo Mazuco', dataInicio: '14/09/2026', dataFim: '25/09/2026', duracaoSemanas: '2', status: 'Ativo', observacao: 'Escala regular rotativa' },
-        { id: 'ESC-120', email: 'evio.brito@grupoboticario.com.br', nome: 'Évio De Brito', dataInicio: '28/09/2026', dataFim: '09/10/2026', duracaoSemanas: '2', status: 'Programado', observacao: 'Escala regular rotativa' }
+        { id: 'ESC-117', email: 'ana.silva@grupoboticario.com.br', nome: 'Ana Silva', dataInicio: '17/08/2026', dataFim: '28/08/2026', duracaoSemanas: '2', status: 'Concluído', observacao: '', releaseTribo: 'Release 5.18', controleReleaseId: 'CR-018' },
+        { id: 'ESC-118', email: 'bruno.costa@grupoboticario.com.br', nome: 'Bruno Costa', dataInicio: '31/08/2026', dataFim: '11/09/2026', duracaoSemanas: '2', status: 'Concluído', observacao: '', releaseTribo: 'Release 5.19', controleReleaseId: 'CR-019' },
+        { id: 'ESC-119', email: 'rodrigo.mazuco@grupoboticario.com.br', nome: 'Rodrigo Mazuco', dataInicio: '14/09/2026', dataFim: '25/09/2026', duracaoSemanas: '2', status: 'Ativo', observacao: 'Vigência da release', releaseTribo: 'Release 5.20', controleReleaseId: 'CR-020' },
+        { id: 'ESC-120', email: 'evio.brito@grupoboticario.com.br', nome: 'Évio De Brito', dataInicio: '28/09/2026', dataFim: '09/10/2026', duracaoSemanas: '2', status: 'Programado', observacao: '', releaseTribo: 'Release 5.21', controleReleaseId: 'CR-021' },
+        { id: 'ESC-121', email: 'ana.silva@grupoboticario.com.br', nome: 'Ana Silva', dataInicio: '12/10/2026', dataFim: '23/10/2026', duracaoSemanas: '2', status: 'Programado', observacao: '', releaseTribo: 'Release 5.22', controleReleaseId: 'CR-022' }
       ];
       state.activeDev = pickActiveDev(state.schedules);
       renderActiveDev();
-      renderTable();
+      renderSchedule();
       return;
     }
 
@@ -245,22 +439,24 @@ window.BatmanModule = (function() {
           var response = JSON.parse(responseStr);
           if (response.success) {
             state.schedules = response.schedules || [];
-            state.activeDev = pickActiveDev(state.schedules);
+            state.activeDev = response.activeDev || pickActiveDev(state.schedules);
             renderActiveDev();
-            renderTable();
+            renderSchedule();
           } else {
             var card = document.getElementById('activeBatmanCard');
-            if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-medium">Erro na planilha: ' + response.message + '</p>';
+            if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-medium">Erro na planilha: ' + escapeHtml(response.message) + '</p>';
+            var root = document.getElementById('batmanScheduleRoot');
+            if (root) root.innerHTML = '';
           }
-        } catch(e) {
-          var card = document.getElementById('activeBatmanCard');
-          if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2">Erro no parse: ' + e.toString() + '</p>';
+        } catch (e) {
+          var cardErr = document.getElementById('activeBatmanCard');
+          if (cardErr) cardErr.innerHTML = '<p class="text-xs text-red-500 py-2">Erro no parse: ' + escapeHtml(e.toString()) + '</p>';
         }
         loadingDone();
       })
       .withFailureHandler(function(err) {
         var card = document.getElementById('activeBatmanCard');
-        if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-bold">Falha no Apps Script: ' + err.message + '</p>';
+        if (card) card.innerHTML = '<p class="text-xs text-red-500 py-2 font-bold">Falha no Apps Script: ' + escapeHtml(err.message) + '</p>';
         loadingDone();
       })
       .getEscalaBatman();
@@ -360,6 +556,7 @@ window.BatmanModule = (function() {
   return {
     init: function() {
       syncPermissions();
+      syncFilterButtons();
       window.addEventListener('vdCore:permissionsLoaded', function(e) {
         if (e && e.detail) state.isManager = !!e.detail.isManager;
         applyPermissionsUI();
@@ -374,6 +571,17 @@ window.BatmanModule = (function() {
     hide: function() {
       var container = document.getElementById('BatmanModuleContainer');
       if (container) container.classList.add('hidden');
+    },
+    setFilter: function(filter) {
+      state.filter = filter || 'ativos';
+      renderSchedule();
+    },
+    setSearch: function(value) {
+      state.search = value || '';
+      renderSchedule();
+    },
+    onHistoryToggle: function(key, open) {
+      state.historyOpen[key] = !!open;
     },
     openGenerate: openGenerate,
     closeGenerate: closeGenerate,

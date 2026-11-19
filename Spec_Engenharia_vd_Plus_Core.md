@@ -133,9 +133,11 @@ A lista de ausências ativas é visível a qualquer usuário autenticado da apli
 | Desenvolvedor_Nome | Nome exibido |
 | Data_Inicio | Início do turno |
 | Data_Fim | Fim do turno, inclusive |
-| Duracao_Semanas | Duração do turno em semanas (operacional: **2**) |
+| Duracao_Semanas | Duração do turno em semanas (derivada da janela; tipicamente alinhada à release) |
 | Status | `Concluído`, `Ativo` ou `Programado` |
 | Observacao | Texto livre |
+| Release_Tribo_VD | Nome da release coberta (ex.: `Release 5.20`). Vazio em turnos legados até backfill |
+| Controle_Release_ID | Id em `Controle_Releases` (`CR-xxx`), quando conhecido. Colunas novas ficam **no fim** da aba |
 
 ### `Feriados_e_Pontes`
 
@@ -285,9 +287,9 @@ Módulo paralelo ao Calendário de Deploy. Persiste em `Controle_Releases`. Não
 A tela é **híbrida**:
 
 1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados/pontes/recesso P1 (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta **somente se caírem em dia útil** — feriado em Sáb/Dom **não é exibido** neste módulo — e **não entram** na contagem de dias úteis da janela.
-2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela (só dia útil), **um** Batman da escala (turno de **2 semanas** com maior cobertura na janela; empate favorece quem cobre o início), editar/cancelar se `canEdit`.
+2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela (só dia útil), **um** Batman da escala (turno com maior cobertura na janela; empate favorece quem cobre o início), editar/cancelar se `canEdit`.
 
-Ações: **Nova release**, **Importar da Businessmap** (prévia com checkboxes → importar selecionadas). Na grade, o chip de Batman é **um por dia útil** (quem está no turno de 2 semanas naquele dia), com logo + nome em etiqueta clara (fundo âmbar claro). **Não aparece** em sábado, domingo, feriado/ponte de prioridade 1 nem recesso (sem atividade do time). Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
+Ações: **Nova release**, **Importar da Businessmap** (prévia com checkboxes → importar selecionadas). Na grade, o chip de Batman é **um por dia útil** (quem está no turno da escala naquele dia), com logo + nome em etiqueta clara (fundo âmbar claro). **Não aparece** em sábado, domingo, feriado/ponte de prioridade 1 nem recesso (sem atividade do time). Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
 
 Backend: `getReleaseControls`, `saveReleaseControl`, `updateReleaseControl`, `cancelReleaseControl`, `previewImportReleasesFromBusinessmap`, `confirmImportReleasesFromBusinessmap`.
 
@@ -295,21 +297,32 @@ Backend: `getReleaseControls`, `saveReleaseControl`, `updateReleaseControl`, `ca
 
 O plantonista vigente é o do turno cujo intervalo `Data_Inicio`–`Data_Fim` contém a data de hoje.
 
-**Duração do turno (regra operacional atual):** cada Batman permanece **duas semanas** (`Duracao_Semanas = 2`). Não é plantão de um dia: a pessoa cobre todo o intervalo do turno. A UI pode mostrar o nome **no dia** do calendário, mas o vínculo real é o turno de duas semanas.
+**Duração do turno (regra operacional atual):** o Batman permanece durante a **vigência da release de negócio** (janela em `Controle_Releases`). Não é plantão de um dia: a pessoa cobre todo o intervalo do turno. `Duracao_Semanas` reflete essa janela (antes o padrão operacional era 2 semanas fixas). A UI do Controle de Releases pode mostrar o nome **no dia** do calendário; o vínculo real é o turno completo.
 
-Ao carregar a escala, o backend grava a coluna `Status` de cada turno com as duas datas preenchidas:
+Ao carregar a escala, o backend:
 
-- `Data_Fim` anterior a hoje: `Concluído`.
-- O intervalo contém hoje: `Ativo`.
-- `Data_Inicio` posterior a hoje: `Programado`.
+1. Garante as colunas `Release_Tribo_VD` e `Controle_Release_ID` no fim da aba (sem alterar índices das colunas 1–8).
+2. Grava a coluna `Status` de cada turno com as duas datas preenchidas:
+   - `Data_Fim` anterior a hoje: `Concluído`.
+   - O intervalo contém hoje: `Ativo`.
+   - `Data_Inicio` posterior a hoje: `Programado`.
+3. Turnos sem `Release_Tribo_VD` podem receber backfill por maior sobreposição com uma release `Ativo` em `Controle_Releases` (só preenche vazios).
 
-Turno sem data interpretável não é alterado. A tela mostra o plantonista vigente em destaque e a lista de turnos em ordem cronológica. O selo da tabela usa o status já gravado.
+Turno sem data interpretável não tem status alterado.
+
+A aba Batman mostra:
+
+1. **Hero** — plantonista vigente, período, chip da release e dias restantes.
+2. **Próximos turnos** — cards compactos só de `Programado` (limitados).
+3. **Histórico** — `Concluído`, colapsado por padrão e agrupado por trimestre; filtros/busca por status, nome ou release.
+
+Não há tabela plana listando todos os turnos de uma vez. O selo de status usa o valor já gravado.
 
 Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Ordem_Escala`.
 
-O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (**padrão 2**). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros.
+O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (alinhada à janela da release; o formulário ainda não gera a partir de `Controle_Releases`). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros. Colunas de release nascem vazias nesse fluxo até vínculo/backfill.
 
-**Evolução (hub / Controle de Releases):** no futuro, a regra tende a **um Batman por release**, com permanência alinhada à janela da release (hoje tipicamente ~duas semanas). Até lá, o Controle de Releases só **lê** a `Escala_Sustentacao` (turno de 2 semanas) e exibe quem está de plantão no dia / na janela.
+**Evolução (hub / Controle de Releases):** gravar Batman na própria entidade release e gerar/atribuir escala a partir das releases — ver `specs/backlog/controle-de-releases-hub.md`. Até lá, o Controle de Releases continua **lendo** a `Escala_Sustentacao` por cruzamento de datas.
 
 ## Capacidade
 
@@ -425,7 +438,7 @@ Enquanto o backend responde, o shell mostra o **vd+ Pulse Overlay** (`LoadingOve
 
 Itens detalhados em `specs/backlog/`. Em especial:
 
-- Controle de Releases como hub (centralizar deploys PT/CO, responsável/coresponsável, feriados/ausências por release; **Batman = um por release ~2 semanas**) — ver `specs/backlog/controle-de-releases-hub.md`.
+- Controle de Releases como hub (centralizar deploys PT/CO, responsável/coresponsável, feriados/ausências por release; **Batman gravado na entidade release** e geração da escala a partir das releases) — ver `specs/backlog/controle-de-releases-hub.md`. A aba Batman já navega por release via `Escala_Sustentacao` + colunas `Release_Tribo_VD` / `Controle_Release_ID`.
 
 ## Documentação SDD
 
