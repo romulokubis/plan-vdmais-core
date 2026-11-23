@@ -3,12 +3,11 @@
 Aplicação web em Google Apps Script, vinculada à planilha **Plan Engenharia - DB**, com leitura de cards na Businessmap API v2. Centraliza a operação da squad vd+ Core:
 
 1. **Capacidade.** Dias efetivos da squad num período, com waterfall de descontos e previsão de cards por Monte Carlo. A conta é por pessoa no servidor; a tela não mostra pessoa.
-2. **Escala de sustentação (Batman).** Rodízio de quem atende a sustentação em cada período.
-3. **Controle de Releases.** Janelas da release tribal (cadastro manual ou import da Businessmap), calendário híbrido e Batman derivado da escala — paralelo ao calendário de deploy.
-4. **Calendário de deploy.** Releases por instância (Portugal e Colômbia), com bloqueio de datas proibidas.
-5. **Feriados e recesso.** Feriados da planilha e pontes calculadas, com indicação de quais bloqueiam deploy.
-6. **Release notes.** Texto categorizado a partir dos cards da release.
-7. **Ausências.** Cadastro de férias, licenças e ausências parciais em horas, com impacto na capacidade.
+2. **Releases & Batman.** Aba unificada: Batman da vez, calendário mensal de releases, cronograma de turnos e CRUD/import de janelas tribais — regras únicas de plantão vinculadas à release.
+3. **Calendário de deploy.** Releases por instância (Portugal e Colômbia), com bloqueio de datas proibidas.
+4. **Feriados e recesso.** Feriados da planilha e pontes calculadas, com indicação de quais bloqueiam deploy.
+5. **Release notes.** Texto categorizado a partir dos cards da release.
+6. **Ausências.** Cadastro de férias, licenças e ausências parciais em horas, com impacto na capacidade.
 
 Fuso horário: `America/Sao_Paulo`. A semana começa na segunda-feira. Datas são exibidas como `DD/MM/AAAA`. Na leitura das abas, o backend aceita `DD/MM/AAAA`, `D/M/AAAA` e `AAAA-MM-DD`.
 
@@ -65,8 +64,8 @@ Regras:
 | `LoadingOverlay.html` | Overlay global vd+ Pulse (`window.VdLoading`) |
 | `HeaderModule.html` | Saudação e tema |
 | `CapacityModule.html` | Capacidade e gráfico |
-| `BatmanModule.html` | Escala de sustentação (`window.BatmanModule`) |
-| `ReleasesControlModule.html` | Controle de Releases (`window.ReleasesControlModule`) |
+| `ReleasesBatmanModule.html` | Aba unificada Releases & Batman (`window.ReleasesBatmanModule`) |
+| `BatmanModule.html` / `ReleasesControlModule.html` | Legados (não incluídos no shell; substituídos pela aba unificada) |
 | `CalendarModule.html` | Lista de deploys por mês, editar e cancelar |
 | `DeployModal.html` | Formulário de criar e editar deploy |
 | `HolidaysModule.html` | Feriados, pontes e recesso por ano |
@@ -79,8 +78,7 @@ Regras:
 | Aba | Container | Módulo |
 | --- | --- | --- |
 | 📊 Capacidade da Squad | `view-capacity` | `CapacityModule` |
-| 🦇 Escala de sustentação / Batman | `view-batman` | `BatmanModule` |
-| 🚀 Controle de Releases | `view-releases` | `ReleasesControlModule` |
+| 🦇 Releases & Batman | `view-releases-batman` | `ReleasesBatmanModule` |
 | 📅 Calendário de Deploy | `view-calendar` | `CalendarModule` |
 | 🌴 Feriados & Recesso | `view-holidays` | `HolidaysModule` |
 | 📦 Release Notes | `view-releasenotes` | `ReleaseNotesModule` |
@@ -280,18 +278,20 @@ Cancelar é exclusão lógica: o status vira `Cancelado`. Deploys cancelados nã
 
 O calendário lista os deploys agrupados por mês da `Data_Deploy`, ou da `Data_inicio_release` quando não há data de deploy, em ordem cronológica. Cada card mostra instância, release do sistema, status, release da tribo, janela de desenvolvimento e data do deploy.
 
-## Controle de Releases
+## Releases & Batman (aba unificada)
 
-Módulo paralelo ao Calendário de Deploy. Persiste em `Controle_Releases`. Não altera `Planejamento_Deploys` nesta fase.
+Substitui as antigas abas Escala/Batman e Controle de Releases. Persiste em `Controle_Releases` + `Escala_Sustentacao`. Não altera `Planejamento_Deploys` nesta fase.
 
-A tela é **híbrida**:
+Ordem da tela:
 
-1. **Grade mensal** no topo: semana **DOM, SEG, TER, QUA, QUI, SEX, SÁB** (exceção visual à semana que começa na segunda no restante do produto). Faixas da janela só em **dias úteis** (segunda a sexta e que não sejam feriado/ponte de prioridade 1). Sábados e domingos ficam esmaecidos. Feriados/pontes/recesso P1 (fonte `Feriados_e_Pontes` / `getFeriados`) aparecem com etiqueta **somente se caírem em dia útil** — feriado em Sáb/Dom **não é exibido** neste módulo — e **não entram** na contagem de dias úteis da janela.
-2. **Detalhes das releases do período** abaixo: releases cuja janela intersecta o mês visível — ID, nome, origem, janela, dias úteis, feriados na janela (só dia útil), **um** Batman da escala (turno com maior cobertura na janela; empate favorece quem cobre o início), editar/cancelar se `canEdit`.
+1. **Hero** — Batman da vez (turno que contém hoje) + chip da release vinculada.
+2. **Calendário mensal** — semana **DOM→SÁB**; faixas de release só em dias úteis; feriados P1 só em dia útil; chip Batman só em dia útil com release (regra unificada: turno que contém o dia; se vários, prefere `Controle_Release_ID` da release do dia).
+3. **Releases do período** — cards com janela, dias úteis e **Batman da release** (turno com `Controle_Release_ID` = id; fallback overlap).
+4. **Cronograma por release** — cards de próximos + histórico colapsável (layout da antiga Escala).
 
-Ações: **Nova release**, **Importar da Businessmap** (prévia com checkboxes → importar selecionadas). Na grade, o chip de Batman é **um por dia útil** (quem está no turno da escala naquele dia), com logo + nome em etiqueta clara (fundo âmbar claro). **Não aparece** em sábado, domingo, feriado/ponte de prioridade 1 nem recesso (sem atividade do time). Não depende de emoji de bandeira para deploys nesta fase (marcadores de deploy reais ficam no Calendário de Deploy até o hub).
+Ações: **Nova release**, **Importar BM** (`canEdit`), **Gerar turnos** (`Tech Manager`, com select opcional de release → janela exata + vínculo gravado).
 
-Backend: `getReleaseControls`, `saveReleaseControl`, `updateReleaseControl`, `cancelReleaseControl`, `previewImportReleasesFromBusinessmap`, `confirmImportReleasesFromBusinessmap`.
+Backend: `getEscalaBatman`, `getReleaseControls`, `regenerateBatmanSchedule`, `saveReleaseControl`, `updateReleaseControl`, `cancelReleaseControl`, `previewImportReleasesFromBusinessmap`, `confirmImportReleasesFromBusinessmap`.
 
 ## Escala de sustentação
 
@@ -310,19 +310,13 @@ Ao carregar a escala, o backend:
 
 Turno sem data interpretável não tem status alterado.
 
-A aba Batman mostra:
-
-1. **Hero** — plantonista vigente, período, chip da release e dias restantes.
-2. **Próximos turnos** — cards compactos só de `Programado` (limitados).
-3. **Histórico** — `Concluído`, colapsado por padrão e agrupado por trimestre; filtros/busca por status, nome ou release.
-
-Não há tabela plana listando todos os turnos de uma vez. O selo de status usa o valor já gravado.
+A UI unificada (**Releases & Batman**) mostra o hero e o cronograma descritos na seção anterior. O selo de status usa o valor já gravado. Não há tabela plana infinita.
 
 Participam do rodízio só integrantes com `Ativo_Escala = Sim`, na ordem de `Ordem_Escala`.
 
-O Tech Manager pode **gerar turnos** pela aba Batman: informa data início, quantidade de turnos e duração em semanas (alinhada à janela da release; o formulário ainda não gera a partir de `Controle_Releases`). A geração só acrescenta; o início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. Não apaga turnos futuros. Colunas de release nascem vazias nesse fluxo até vínculo/backfill.
+O Tech Manager **gera turnos** na aba unificada: pode escolher uma release ativa (1 turno na janela exata + `Release_Tribo_VD` / `Controle_Release_ID`) ou gerar manualmente (quantidade + semanas; início efetivo = maior entre a data pedida e o dia seguinte ao último `Data_Fim`). Não apaga turnos futuros.
 
-**Evolução (hub / Controle de Releases):** gravar Batman na própria entidade release e gerar/atribuir escala a partir das releases — ver `specs/backlog/controle-de-releases-hub.md`. Até lá, o Controle de Releases continua **lendo** a `Escala_Sustentacao` por cruzamento de datas.
+**Evolução (hub):** gravar Batman na entidade release e deploys PT/CO no hub — ver `specs/backlog/controle-de-releases-hub.md`.
 
 ## Capacidade
 
@@ -422,10 +416,10 @@ Ações de editar e cancelar só aparecem quando o usuário é o dono da ausênc
 
 | Evento | Quem dispara | `detail` | Quem escuta |
 | --- | --- | --- | --- |
-| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit, isManager, papel }` | `CalendarModule`, `AbsencesModule`, `RitualsModule`, `ReleasesControlModule` |
+| `vdCore:permissionsLoaded` | `AppShell` | `{ email, canEdit, isManager, papel }` | `CalendarModule`, `AbsencesModule`, `RitualsModule`, `ReleasesBatmanModule` |
 | `vdCore:openDeployModal` | `CalendarModule` | Deploy a editar, ou nada para criar | `DeployModal` |
 | `vdCore:deployScheduled` | `DeployModal` e `CalendarModule` após gravar ou cancelar | Nenhum | `CalendarModule` recarrega a lista |
-| `vdCore:releaseControlsChanged` | `ReleasesControlModule` após gravar, cancelar ou import | Nenhum | `ReleasesControlModule` recarrega |
+| `vdCore:releaseControlsChanged` | `ReleasesBatmanModule` após gravar, cancelar ou import | Nenhum | `ReleasesBatmanModule` pode recarregar |
 | `vdCore:absenceChanged` | `AbsencesModule` após gravar, editar ou cancelar | Nenhum | `AbsencesModule` recarrega a lista |
 | `vdCore:ritualsChanged` | `RitualsModule` após gravar, editar ou excluir | Nenhum | `RitualsModule` recarrega a lista |
 | `vdCore:themeChanged` | `HeaderModule` | `{ theme: "light" }` ou `{ theme: "dark" }` | `CapacityModule` |

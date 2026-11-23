@@ -17,13 +17,14 @@ Tech Manager gera turnos futuros na `Escala_Sustentacao` sem editar a planilha �
 | Apaga futuros? | Não. Só **acrescenta**. O início efetivo é o maior entre a data pedida e o dia seguinte ao último `Data_Fim` já existente. |
 | Duração padrão | Alinhada à **vigência da release de negócio**. O formulário ainda pede `duracaoSemanas` (mín. 1); não há default dogmático de 2 semanas. |
 | Quem executa | Só `Tech Manager`. |
-| Gerar a partir de `Controle_Releases`? | **Fora desta entrega** (hub / backlog). |
+| Gerar a partir de `Controle_Releases`? | **Sim (opcional):** `controleReleaseId` → 1 turno na janela exata + vínculo. Sem id, gera manual como antes. |
 
 ## Entrada
 
-- `dataInicio` (obrigatória)
-- `quantidadeTurnos` (inteiro ≥ 1)
-- `duracaoSemanas` (inteiro ≥ 1)
+- `dataInicio` (obrigatória se sem release)
+- `quantidadeTurnos` (inteiro ≥ 1; forçado a 1 com release)
+- `duracaoSemanas` (inteiro ≥ 1; derivado da janela com release)
+- `controleReleaseId` (opcional)
 
 ## Schema
 
@@ -41,9 +42,9 @@ Colunas no fim de `Escala_Sustentacao` (não alteram índices 1–8):
 3. Nome e e-mail copiados de `Integrantes_Squad`.
 4. Status calculado como nas demais leituras (`syncEscalaStatus`).
 5. Sem integrantes ativos na escala → erro claro.
-6. Geração deixa `Release_Tribo_VD` / `Controle_Release_ID` vazios (vínculo via backfill ou hub futuro).
+6. Com `controleReleaseId`, grava `Release_Tribo_VD` / `Controle_Release_ID`. Sem id, colunas ficam vazias (backfill por overlap na leitura).
 
 ## Interface
 
-- Botão “Gerar turnos” na aba Batman (só gestor). Modal com os três campos; copy orienta duração = janela da release.
-- Cronograma: hero com release, cards de próximos, histórico colapsável por trimestre + filtros.
+- Botão “Gerar turnos” na aba **Releases & Batman** (só gestor). Modal com select de release + campos manuais.
+- Cronograma na mesma aba unificada.

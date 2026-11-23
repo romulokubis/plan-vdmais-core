@@ -30,11 +30,11 @@ Evoluir o Controle de Releases (após a fase 1 paralela) para ser o **ponto cent
 
 | Hoje (intermediário) | Hub (futuro) |
 | --- | --- |
-| Turno em `Escala_Sustentacao` com duração = vigência da release; colunas `Release_Tribo_VD` / `Controle_Release_ID` | **Um Batman na entidade release** |
-| Aba Batman: hero + próximos + histórico (não lista plana); Controle de Releases ainda cruza escala × janela | Batman amarrado à release; UI unificada no hub |
-| Geração de turnos ainda global na aba Batman (sem auto a partir de CR) | Escala gerada/atribuída a partir das releases |
+| Aba unificada **Releases & Batman** (`ReleasesBatmanModule`); turno em `Escala_Sustentacao` com `Release_Tribo_VD` / `Controle_Release_ID` | **Um Batman na entidade release** |
+| Gerar turnos com select de release (janela + vínculo); calendário + cronograma na mesma aba | Deploys PT/CO, resp./coresp. e impacto no hub |
+| Batman do dia/release derivados da escala (vínculo preferencial) | Escala gerada/espelhada a partir das releases |
 
-**Nota:** a UX da aba Batman orientada a release é passo intermediário; este hub ainda centraliza Batman na entidade release.
+**Nota:** a unificação de UI e regras já foi entregue em `specs/features/releases-batman/`. Este hub ainda centraliza Batman/deploys na entidade release.
 
 ## Perguntas em aberto
 
