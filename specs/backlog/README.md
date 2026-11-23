@@ -18,4 +18,5 @@ Itens promovidos recentemente:
 
 - regenerar escala → `specs/features/regenerar-escala/`
 - controle de releases (fase 1) → `specs/features/controle-de-releases/` (registro em [`controle-de-releases.md`](./controle-de-releases.md))
+- unificação Releases & Batman → `specs/features/releases-batman/`
 

@@ -1473,7 +1473,8 @@ function loadEscalaRoster(ss) {
 
 /**
  * Acrescenta turnos de sustentação. Não apaga existentes.
- * payload: { dataInicio, quantidadeTurnos, duracaoSemanas }
+ * payload: { dataInicio, quantidadeTurnos, duracaoSemanas, controleReleaseId? }
+ * Com controleReleaseId: 1 turno na janela exata da release + vínculo gravado.
  */
 function regenerateBatmanSchedule(payload) {
   try {
@@ -1485,79 +1486,117 @@ function regenerateBatmanSchedule(payload) {
       });
     }
 
+    var ss = getActiveDb();
+    if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
+
+    var releaseTribo = '';
+    var controleReleaseId = String(payload && payload.controleReleaseId || '').trim();
     var start = parseSheetDate(payload && payload.dataInicio);
-    if (!start) {
-      return JSON.stringify({ success: false, message: 'Informe a data de início.' });
-    }
+    var fixedEnd = null;
     var quantity = parseInt(payload && payload.quantidadeTurnos, 10);
+    var weeks = parseInt(payload && payload.duracaoSemanas, 10);
+
+    if (controleReleaseId) {
+      var loaded = loadControleReleaseRows(ss);
+      var found = null;
+      loaded.rows.forEach(function(row) {
+        if (row.id === controleReleaseId) found = row;
+      });
+      if (!found) {
+        return JSON.stringify({ success: false, message: 'Release ' + controleReleaseId + ' não encontrada.' });
+      }
+      if (String(found.status || '').toLowerCase() === 'cancelado') {
+        return JSON.stringify({ success: false, message: 'Release cancelada não pode receber Batman.' });
+      }
+      start = parseSheetDate(found.dataInicio);
+      fixedEnd = parseSheetDate(found.dataFim);
+      if (!start || !fixedEnd) {
+        return JSON.stringify({ success: false, message: 'Janela da release inválida.' });
+      }
+      releaseTribo = found.releaseTribo || '';
+      quantity = 1;
+      weeks = Math.max(1, Math.ceil((overlapInclusiveDays(start, fixedEnd, start, fixedEnd)) / 7));
+    }
+
+    if (!start) {
+      return JSON.stringify({ success: false, message: 'Informe a data de início ou escolha uma release.' });
+    }
     if (isNaN(quantity) || quantity < 1) {
       return JSON.stringify({ success: false, message: 'Informe a quantidade de turnos (mínimo 1).' });
     }
     if (quantity > 52) {
       return JSON.stringify({ success: false, message: 'No máximo 52 turnos por geração.' });
     }
-  var weeks = parseInt(payload && payload.duracaoSemanas, 10);
-  if (isNaN(weeks) || weeks < 1) {
-    return JSON.stringify({
-      success: false,
-      message: 'Informe a duração em semanas (mínimo 1), alinhada à janela da release.'
+    if (isNaN(weeks) || weeks < 1) {
+      return JSON.stringify({
+        success: false,
+        message: 'Informe a duração em semanas (mínimo 1), alinhada à janela da release.'
+      });
+    }
+
+    var colMap = ensureEscalaSheet(ss);
+    var sheet = colMap.sheet;
+
+    var roster = loadEscalaRoster(ss);
+    if (!roster.length) {
+      return JSON.stringify({
+        success: false,
+        message: 'Nenhum integrante com Ativo_Escala = Sim.'
+      });
+    }
+
+    var latestEnd = null;
+    sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
+      var end = parseSheetDate(row[4]);
+      if (!end) return;
+      if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
     });
-  }
 
-  var ss = getActiveDb();
-  if (!ss) return JSON.stringify({ success: false, message: 'Planilha ativa não encontrada.' });
-  var colMap = ensureEscalaSheet(ss);
-  var sheet = colMap.sheet;
+    var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    if (latestEnd && !controleReleaseId) {
+      var nextDay = addDays(latestEnd, 1);
+      if (nextDay.getTime() > cursor.getTime()) cursor = nextDay;
+    }
+    if (controleReleaseId && latestEnd && latestEnd.getTime() >= start.getTime()) {
+      return JSON.stringify({
+        success: false,
+        message: 'Já existe turno até ' + formatSheetDate(latestEnd) +
+          '. Ajuste a escala ou escolha uma release com início após essa data.'
+      });
+    }
 
-  var roster = loadEscalaRoster(ss);
-  if (!roster.length) {
-    return JSON.stringify({
-      success: false,
-      message: 'Nenhum integrante com Ativo_Escala = Sim.'
-    });
-  }
-
-  var latestEnd = null;
-  sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
-    var end = parseSheetDate(row[4]);
-    if (!end) return;
-    if (!latestEnd || end.getTime() > latestEnd.getTime()) latestEnd = end;
-  });
-
-  var cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  if (latestEnd) {
-    var nextDay = addDays(latestEnd, 1);
-    if (nextDay.getTime() > cursor.getTime()) cursor = nextDay;
-  }
-
-  var nextId = nextEscalaId(sheet);
-  var created = [];
-  for (var t = 0; t < quantity; t++) {
-    var person = roster[t % roster.length];
-    var turnStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
-    var turnEnd = addDays(turnStart, weeks * 7 - 1);
-    nextId += 1;
-    var id = 'ESC-' + padIdNumber(nextId);
-    var rowValues = [
-      id,
-      person.email,
-      person.nome,
-      formatSheetDate(turnStart),
-      formatSheetDate(turnEnd),
-      String(weeks),
-      '',
-      ''
-    ];
-    var maxCol = Math.max(colMap.releaseTriboCol, colMap.controleReleaseIdCol, 8);
-    while (rowValues.length < maxCol) rowValues.push('');
-    sheet.appendRow(rowValues);
-    created.push(id);
-    cursor = addDays(turnEnd, 1);
-  }
+    var nextId = nextEscalaId(sheet);
+    var created = [];
+    for (var t = 0; t < quantity; t++) {
+      var person = roster[t % roster.length];
+      var turnStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
+      var turnEnd = fixedEnd && t === 0
+        ? new Date(fixedEnd.getFullYear(), fixedEnd.getMonth(), fixedEnd.getDate())
+        : addDays(turnStart, weeks * 7 - 1);
+      nextId += 1;
+      var id = 'ESC-' + padIdNumber(nextId);
+      var rowValues = [
+        id,
+        person.email,
+        person.nome,
+        formatSheetDate(turnStart),
+        formatSheetDate(turnEnd),
+        String(weeks),
+        '',
+        ''
+      ];
+      var maxCol = Math.max(colMap.releaseTriboCol, colMap.controleReleaseIdCol, 8);
+      while (rowValues.length < maxCol) rowValues.push('');
+      rowValues[colMap.releaseTriboCol - 1] = releaseTribo;
+      rowValues[colMap.controleReleaseIdCol - 1] = controleReleaseId;
+      sheet.appendRow(rowValues);
+      created.push(id);
+      cursor = addDays(turnEnd, 1);
+    }
 
     return JSON.stringify({
       success: true,
-      message: created.length + ' turno(s) gerado(s).',
+      message: created.length + ' turno(s) gerado(s)' + (releaseTribo ? ' para ' + releaseTribo : '') + '.',
       ids: created
     });
   } catch (e) {
@@ -3045,18 +3084,29 @@ function loadControleReleaseRows(ss) {
 }
 
 function loadEscalaTurnsForOverlay(ss) {
+  var colMap = ensureEscalaSheet(ss);
+  var sheet = colMap.sheet;
+  var data = sheet.getDataRange().getDisplayValues();
   var turns = [];
-  sheetRows(ss, 'Escala_Sustentacao').forEach(function(row) {
+  if (!data || data.length <= 1) return turns;
+  var releaseTriboIdx = colMap.releaseTriboCol - 1;
+  var controleReleaseIdx = colMap.controleReleaseIdCol - 1;
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (!row || (!row[0] && !row[2])) continue;
     var start = parseSheetDate(row[3]);
     var end = parseSheetDate(row[4]);
-    if (!start || !end) return;
+    if (!start || !end) continue;
     turns.push({
+      id: String(row[0] || '').trim(),
       email: String(row[1] || '').trim(),
       nome: String(row[2] || '').trim() || String(row[1] || '').trim(),
       dataInicio: start,
-      dataFim: end
+      dataFim: end,
+      releaseTribo: String(row[releaseTriboIdx] || '').trim(),
+      controleReleaseId: String(row[controleReleaseIdx] || '').trim()
     });
-  });
+  }
   return turns;
 }
 
@@ -3072,13 +3122,24 @@ function overlapInclusiveDays(aStart, aEnd, bStart, bEnd) {
 }
 
 /**
- * Um Batman por release: turno da escala com maior sobreposição na janela.
- * Empate → quem cobre a Data_Inicio da release; depois o turno que começa antes.
+ * Um Batman por release (regra unificada):
+ * 1) Turnos com Controle_Release_ID = releaseId (preferência)
+ * 2) Senão: maior overlap na janela; empate → cobre Data_Inicio; depois começa antes.
  */
-function batmansForWindow(turns, start, end) {
+function batmansForWindow(turns, start, end, releaseId) {
+  var pool = turns || [];
+  var rid = String(releaseId || '').trim();
+  if (rid) {
+    var linked = [];
+    pool.forEach(function(t) {
+      if (String(t.controleReleaseId || '').trim() === rid) linked.push(t);
+    });
+    if (linked.length) pool = linked;
+  }
+
   var best = null;
   var bestDays = -1;
-  turns.forEach(function(t) {
+  pool.forEach(function(t) {
     if (!rangesIntersect(start, end, t.dataInicio, t.dataFim)) return;
     var days = overlapInclusiveDays(start, end, t.dataInicio, t.dataFim);
     if (days <= 0) return;
@@ -3097,16 +3158,25 @@ function batmansForWindow(turns, start, end) {
     }
   });
   if (!best) return [];
-  return [{ email: best.email, nome: best.nome }];
+  return [{
+    email: best.email,
+    nome: best.nome,
+    escalaId: best.id || '',
+    releaseTribo: best.releaseTribo || '',
+    controleReleaseId: best.controleReleaseId || ''
+  }];
 }
 
 function serializeEscalaTurns(turns) {
   return turns.map(function(t) {
     return {
+      id: t.id || '',
       email: t.email,
       nome: t.nome,
       dataInicio: formatSheetDate(t.dataInicio),
-      dataFim: formatSheetDate(t.dataFim)
+      dataFim: formatSheetDate(t.dataFim),
+      releaseTribo: t.releaseTribo || '',
+      controleReleaseId: t.controleReleaseId || ''
     };
   });
 }
@@ -3239,7 +3309,7 @@ function getReleaseControls(yearMonth) {
         observacao: item.observacao,
         atualizadoEm: item.atualizadoEm,
         diasUteis: countBusinessDaysInWindow(start, end, holidayMap),
-        batmans: batmansForWindow(turns, start, end),
+        batmans: batmansForWindow(turns, start, end, item.id),
         feriadosNaJanela: holidaysInWindow(start, end, holidayMap),
         touchesMonth: !!touchesMonth
       });
