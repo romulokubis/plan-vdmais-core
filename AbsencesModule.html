@@ -1,37 +1,25 @@
 <div id="AbsencesModuleContainer" class="flex flex-col gap-6 w-full">
 
-  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-    <div>
-      <h2 class="text-xl font-bold text-slate-900 dark:text-white">Ausências</h2>
-      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Férias, licenças e ausências parciais da squad vd+ Core</p>
+  <!-- Card Principal: Ausências (mesmo padrão visual de Feriados & Recesso) -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/60 gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <span>🏖️</span> Ausências da Squad
+        </h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          Férias, licenças e ausências parciais da squad vd+ Core
+        </p>
+      </div>
+
+      <button id="btnCreateAbsence" onclick="AbsencesModule.openCreate()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
+        <span>+</span> Cadastrar ausência
+      </button>
     </div>
 
-    <button id="btnCreateAbsence" onclick="AbsencesModule.openCreate()" class="hidden bg-[#008775] hover:bg-[#006e5f] text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 focus:outline-none cursor-pointer select-none shrink-0">
-      <span>+</span> Cadastrar ausência
-    </button>
-  </div>
-
-  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 p-6 shadow-sm">
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse text-sm">
-        <thead>
-          <tr class="border-b border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            <th class="py-3 px-3">ID</th>
-            <th class="py-3 px-3">Colaborador</th>
-            <th class="py-3 px-3">Período</th>
-            <th class="py-3 px-3">Tipo</th>
-            <th class="py-3 px-3 text-center">Modalidade</th>
-            <th class="py-3 px-3 text-center">Horas</th>
-            <th class="py-3 px-3">Observação</th>
-            <th class="py-3 px-3 text-right">Ações</th>
-          </tr>
-        </thead>
-        <tbody id="absencesTableBody" class="divide-y divide-slate-100 dark:divide-slate-700/60">
-          <tr>
-            <td colspan="8" class="py-6 text-center text-xs text-slate-400">Carregando ausências...</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- Layout de Grid 4 Colunas (mesmo padrão de HolidaysModule) -->
+    <div id="absencesListContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+      <p class="text-xs text-slate-400 col-span-full py-8 text-center">Carregando ausências...</p>
     </div>
   </div>
 
@@ -358,50 +346,65 @@ window.AbsencesModule = (function() {
   }
 
   function render() {
-    var tbody = document.getElementById('absencesTableBody');
-    if (!tbody) return;
+    var container = document.getElementById('absencesListContainer');
+    if (!container) return;
 
     if (!state.absences.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-slate-400">Nenhuma ausência ativa cadastrada.</td></tr>';
+      container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center">Nenhuma ausência ativa cadastrada.</p>';
       return;
     }
 
     var html = '';
     state.absences.forEach(function(item) {
+      var isHora = item.modalidade === 'Hora';
+      var badgeClass = isHora
+        ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+        : 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+      var badgeText = isHora
+        ? '⏱️ Hora' + (item.horas ? ' · ' + item.horas + 'h' : '')
+        : '📅 Dia';
+
+      var metaParts = [];
+      if (item.id) metaParts.push(item.id);
+      if (item.email) metaParts.push(item.email);
+      var metaLine = metaParts.join(' • ');
+
+      var periodLabel = (item.dataInicio || '-') + (item.dataFim && item.dataFim !== item.dataInicio ? ' → ' + item.dataFim : '');
+      var obsLine = item.observacao
+        ? '<p class="text-[10px] text-slate-400 line-clamp-2 leading-snug" title="' + escapeHtml(item.observacao) + '">' + escapeHtml(item.observacao) + '</p>'
+        : '';
+
       var actions = '';
       if (canManageTarget(item.email)) {
         actions =
-          '<button type="button" onclick="AbsencesModule.openEdit(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-[#008775] dark:hover:text-[#2dd4bf] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Editar">✏️</button>' +
-          '<button type="button" onclick="AbsencesModule.cancelAbsence(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Cancelar">🗑️</button>';
+          '<div class="flex items-center gap-0.5 shrink-0">' +
+            '<button type="button" onclick="AbsencesModule.openEdit(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-[#008775] dark:hover:text-[#2dd4bf] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Editar">✏️</button>' +
+            '<button type="button" onclick="AbsencesModule.cancelAbsence(\'' + escapeHtml(item.id) + '\')" class="p-1 rounded-md text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer text-xs" title="Cancelar">🗑️</button>' +
+          '</div>';
       }
 
-      var modalidadeBadge = item.modalidade === 'Hora'
-        ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-800">Hora</span>'
-        : '<span class="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-200 dark:border-sky-800">Dia</span>';
-
       html +=
-        '<tr class="hover:bg-slate-50/80 dark:hover:bg-slate-900/30">' +
-          '<td class="py-3 px-3 font-mono text-xs text-slate-500">' + escapeHtml(item.id) + '</td>' +
-          '<td class="py-3 px-3">' +
-            '<div class="font-medium text-slate-900 dark:text-white text-xs">' + escapeHtml(item.nome || item.email) + '</div>' +
-            '<div class="text-[10px] text-slate-400">' + escapeHtml(item.email) + '</div>' +
-          '</td>' +
-          '<td class="py-3 px-3 font-mono text-xs text-slate-600 dark:text-slate-300">' +
-            escapeHtml(item.dataInicio) + ' → ' + escapeHtml(item.dataFim) +
-          '</td>' +
-          '<td class="py-3 px-3 text-xs text-slate-700 dark:text-slate-200">' + escapeHtml(item.tipo || '-') + '</td>' +
-          '<td class="py-3 px-3 text-center">' + modalidadeBadge + '</td>' +
-          '<td class="py-3 px-3 text-center text-xs text-slate-600 dark:text-slate-300">' +
-            (item.modalidade === 'Hora' ? escapeHtml(item.horas || '-') : '—') +
-          '</td>' +
-          '<td class="py-3 px-3 text-xs text-slate-500 max-w-[180px] truncate" title="' + escapeHtml(item.observacao || '') + '">' +
-            escapeHtml(item.observacao || '—') +
-          '</td>' +
-          '<td class="py-3 px-3 text-right whitespace-nowrap">' + actions + '</td>' +
-        '</tr>';
+        '<div class="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between gap-3 text-xs hover:border-slate-300 dark:hover:border-slate-600 transition-all">' +
+          '<div class="flex justify-between items-start gap-2">' +
+            '<div class="space-y-0.5 min-w-0">' +
+              '<span class="font-bold text-slate-900 dark:text-white block text-xs leading-snug truncate">' + escapeHtml(item.nome || item.email || 'Colaborador') + '</span>' +
+              '<span class="text-[10px] text-slate-400 font-mono block truncate">' + escapeHtml(metaLine || '-') + '</span>' +
+              '<span class="text-[10px] text-slate-500 dark:text-slate-400 block mt-1">' + escapeHtml(item.tipo || 'Ausência') + '</span>' +
+              obsLine +
+            '</div>' +
+            '<div class="flex flex-col items-end gap-1.5 shrink-0">' +
+              '<span class="text-[10px] font-bold px-2 py-0.5 rounded-full border ' + badgeClass + '">' + badgeText + '</span>' +
+              actions +
+            '</div>' +
+          '</div>' +
+          '<div class="text-right border-t border-slate-200/40 dark:border-slate-700/40 pt-2 mt-1 flex justify-between items-center text-slate-500 gap-2">' +
+            '<span class="text-[10px] uppercase font-semibold text-slate-400 shrink-0">Período</span>' +
+            '<span class="font-mono text-xs font-bold text-slate-800 dark:text-slate-200 text-right">📆 ' + escapeHtml(periodLabel) + '</span>' +
+          '</div>' +
+        '</div>';
     });
 
-    tbody.innerHTML = html;
+    container.innerHTML = html;
   }
 
   function loadingStart(message) {
@@ -433,9 +436,9 @@ window.AbsencesModule = (function() {
   }
 
   function fetchAbsences() {
-    var tbody = document.getElementById('absencesTableBody');
-    if (tbody) {
-      tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-slate-400">Carregando ausências...</td></tr>';
+    var container = document.getElementById('absencesListContainer');
+    if (container) {
+      container.innerHTML = '<p class="text-xs text-slate-400 col-span-full py-8 text-center">Carregando ausências...</p>';
     }
 
     if (typeof google === 'undefined' || !google.script || !google.script.run) {
@@ -452,19 +455,19 @@ window.AbsencesModule = (function() {
           if (resp.success) {
             state.absences = resp.data || [];
             render();
-          } else if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">' + escapeHtml(resp.message) + '</td></tr>';
+          } else if (container) {
+            container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Erro: ' + escapeHtml(resp.message) + '</p>';
           }
         } catch (e) {
-          if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Erro ao processar resposta.</td></tr>';
+          if (container) {
+            container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Erro ao processar resposta.</p>';
           }
         }
         loadingDone();
       })
       .withFailureHandler(function(err) {
-        if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="8" class="py-6 text-center text-xs text-red-500">Falha no servidor: ' + escapeHtml(err.message) + '</td></tr>';
+        if (container) {
+          container.innerHTML = '<p class="text-xs text-red-500 col-span-full py-4 text-center">Falha no servidor: ' + escapeHtml(err.message) + '</p>';
         }
         loadingDone();
       })
